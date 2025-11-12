@@ -1,0 +1,31 @@
+{
+  "name": "Silvia",
+  "version": "0.2.4",
+  "description": "A Discord bot template using Discord.js v14. Silvia dibuat untuk kebutuhan operasional Nismara Group",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node ."
+  },
+  "keywords": [],
+  "author": "TFAGaming",
+  "license": "GPL-3.0",
+  "dependencies": {
+    "colors": "^1.4.0",
+    "discord.js": "^14.17.0",
+    "discordjs-v14-bot-template": "file:",
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0",
+    "mongoose": "^8.19.3",
+    "quick-yaml.db": "^1.2.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TFAGaming/DiscordJS-V14-Bot-Template.git"
+  },
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/TFAGaming/DiscordJS-V14-Bot-Template/issues"
+  },
+  "homepage": "https://github.com/TFAGaming/DiscordJS-V14-Bot-Template#readme"
+}
