@@ -21,11 +21,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/TFAGaming/DiscordJS-V14-Bot-Template.git"
+    "url": "git+https://github.com/mhazm/Silvia-nismara-bot.git"
   },
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/TFAGaming/DiscordJS-V14-Bot-Template/issues"
+    "url": "https://github.com/mhazm/Silvia-nismara-bot/issues"
   },
-  "homepage": "https://github.com/TFAGaming/DiscordJS-V14-Bot-Template#readme"
+  "homepage": "https://github.com/mhazm/Silvia-nismara-bot#readme"
 }
