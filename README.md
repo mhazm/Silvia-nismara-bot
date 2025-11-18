@@ -5,6 +5,7 @@ A Discord bot commands, components and events handler based on **discord.js v14*
 Did you like the project? Click on the star button (⭐️) right above your screen, thank you!
 
 ## Features
+
 - Updated to the latest version of [discord.js v14.x](https://github.com/discordjs/discord.js/releases).
 - Supports all possible type of commands.
     - Message commands.
@@ -22,6 +23,7 @@ Did you like the project? Click on the star button (⭐️) right above your scr
 - Simple Database included (YAML).
 
 ## Commands, Components, and Events structure:
+
 ### Message commands:
 
 [`Partial`](https://www.typescriptlang.org/docs/handbook/utility-types.html#partialtype).<br>
@@ -65,14 +67,17 @@ new ApplicationCommand({
 ```
 
 ### Components:
+
 #### Autocomplete:
 
 `Awaitable` means the function might be **async**.
 
 ```ts
 new AutocompleteComponent({
-    commandName: string,
-    run: Awaitable<(client: DiscordBot, interaction: AutocompleteInteraction) => void> // The main function to execute the command
+	commandName: string,
+	run: Awaitable<
+		(client: DiscordBot, interaction: AutocompleteInteraction) => void
+	>, // The main function to execute the command
 });
 ```
 
@@ -106,6 +111,7 @@ new Event({
 ```
 
 ## Dependencies
+
 - **colors** → latest
 - **discord.js** → 14.13.0 or newer
 - **dotenv** → latest
@@ -115,6 +121,7 @@ new Event({
 > **Node.js v16.11.0** or newer is required to run **discord.js**.
 
 ## Setup
+
 1. Install a code editor ([Visual Studio Code](https://code.visualstudio.com/Download) for an example).
 2. Download this project as a **.zip** file: [Download](https://github.com/TFAGaming/DiscordJS-V14-Bot-Template/archive/refs/heads/main.zip)
 3. Extract the **.zip** file into a normal folder.
@@ -138,6 +145,7 @@ new Event({
 10. Enjoy! The bot should be online.
 
 ## Contributing
+
 Feel free to fork the repository and submit a new pull request if you wish to contribute to this project.
 
 Before you submit a pull request, ensure you tested it and have no issues. Also, keep the same coding style, which means don't use many unnecessary spaces or tabs.
@@ -147,6 +155,7 @@ Thank you to all the people who contributed to **DiscordJS-V14-Bot-Template**!
 <img src="https://contrib.rocks/image?repo=TFAGaming/DiscordJS-V14-Bot-Template">
 
 ## Support
+
 Join our Discord server if you have any questions to ask, or if you have a problem with this project, you can go to the [issues section](https://github.com/TFAGaming/DiscordJS-V14-Bot-Template/issues) and submit a new issue.
 
 <a href="https://discord.gg/E6VFACWu5V">
@@ -154,4 +163,5 @@ Join our Discord server if you have any questions to ask, or if you have a probl
 </a>
 
 ## License
+
 [**GPL-3.0**](./LICENSE), General Public License v3

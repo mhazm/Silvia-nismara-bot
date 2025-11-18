@@ -7,3 +7,4 @@ src/config.js
 database.yml
 terminal.log
 src\config.js
+.prettierrc
