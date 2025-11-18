@@ -9,6 +9,7 @@ const DiscordBot = require('../../client/DiscordBot');
 const ApplicationCommand = require('../../structure/ApplicationCommand');
 const Contract = require('../../models/contract');
 const ActiveJob = require('../../models/activejob');
+const DriverLink = require('../../models/driverlink');
 
 module.exports = new ApplicationCommand({
 	command: {
@@ -52,6 +53,13 @@ module.exports = new ApplicationCommand({
 					'⚠️ Tidak ada kontrak aktif di server ini.',
 				);
 
+			// Check apakah driver terdaftar
+			const link = await DriverLink.findOne({ guildId, userId });
+			if (!link)
+				return interaction.editReply(
+					'❌ Kamu belum terdaftar sebagai driver resmi Nismara.\nHubungi manajemen untuk mendaftar.',
+				);
+
 			// Ambil data job dari Trucky API
 			console.log(`Fetching job data for Job ID: ${jobId}`);
 			const res = await fetch(
@@ -73,6 +81,14 @@ module.exports = new ApplicationCommand({
 					'❌ Job ID tidak ditemukan di Trucky API.',
 				);
 			const job = await res.json();
+
+			// Validasi apakah job milik driver
+			if (job.driver.id !== link.truckyId)
+				return interaction.editReply(
+					`❌ Job ini bukan milik kamu!\n` +
+						`• Driver job: **${job.driver.name}**\n` +
+						`• Driver terdaftar: **${link.truckyName}**`,
+				);
 
 			// Validasi job belum selesai
 			if (job.status === 'completed') {
