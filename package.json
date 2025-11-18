@@ -1,6 +1,6 @@
 {
   "name": "Silvia",
-  "version": "0.2.4",
+  "version": "0.3.1",
   "description": "A Discord bot template using Discord.js v14. Silvia dibuat untuk kebutuhan operasional Nismara Group",
   "main": "src/index.js",
   "scripts": {
