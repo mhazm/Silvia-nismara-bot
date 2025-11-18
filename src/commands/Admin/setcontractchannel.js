@@ -44,6 +44,6 @@ module.exports = new ApplicationCommand({
             }
 
         await contract.save();
-        await interaction.reply(`✅ Channel kontrak diset ke ${channel}`, ephemeral: true);
+        await interaction.reply({ content: `✅ Channel kontrak diset ke ${channel}`, ephemeral: true});
     }
 }).toJSON();

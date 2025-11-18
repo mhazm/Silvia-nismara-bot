@@ -40,6 +40,6 @@ module.exports = new ApplicationCommand({
             }
 
         await setting.save();
-        await interaction.reply(`✅ Silvia log diset ke ${channel}`, ephemeral: true);
+        await interaction.reply({ content: `✅ Silvia log diset ke ${channel}`, ephemeral: true});
     }
 }).toJSON();
