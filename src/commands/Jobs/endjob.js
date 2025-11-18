@@ -10,6 +10,8 @@ const DiscordBot = require('../../client/DiscordBot');
 const ApplicationCommand = require('../../structure/ApplicationCommand');
 const Contract = require('../../models/contract');
 const ActiveJob = require('../../models/activejob');
+const Currency = require("../../models/currency");
+const CurrencyHistory = require("../../models/currencyHistory");
 
 module.exports = new ApplicationCommand({
 	command: {
@@ -70,6 +72,31 @@ module.exports = new ApplicationCommand({
 				);
 			}
 
+			// === Hitung NC berdasarkan jarak ===
+			const drivenKm = job.real_driven_distance_km || 0;
+			const earnedNC = Math.floor(drivenKm); // 1 km = 1 NC
+
+			let currency = await Currency.findOne({ guildId, userId });
+			if (!currency) {
+				currency = new Currency({
+					guildId,
+					userId,
+					totalNC: 0
+				});
+			}
+
+			currency.totalNC += earnedNC;
+			await currency.save();
+
+			// Buat catatan history
+			await CurrencyHistory.create({
+			guildId,
+			userId,
+			amount: earnedNC,
+			type: "earn",
+			reason: `Job #${active.jobId}`
+			});
+
 			const contract = await Contract.findOne({ guildId });
 			const notifyChannel = contract?.channelId
 				? await interaction.guild.channels
@@ -107,6 +134,7 @@ module.exports = new ApplicationCommand({
 						inline: true,
 					},
 					{ name: '⏱️ Durasi', value: job.duration, inline: true },
+					{ name: "💰 Nismara Coin Didapat", value: `${earnedNC} N¢`, inline: true },
 				)
 				.setThumbnail(job.driver.avatar_url)
 				.setURL(job.public_url)
@@ -225,13 +253,13 @@ module.exports = new ApplicationCommand({
 					`💥 Biaya Kerusakan   : ${damageCost.toFixed(2)} T¢`,
 				);
 				economyReport.push(
-					`  🚛 Truk    : ${damageDetails.vehicle_damage ?? 0}%`,
+					`  🚛 Truk    : ${damageDetails.vehicle_damage ?? 0}T¢`,
 				);
 				economyReport.push(
-					`  🛞 Trailer : ${damageDetails.trailers_damage ?? 0}%`,
+					`  🛞 Trailer : ${damageDetails.trailers_damage ?? 0}T¢`,
 				);
 				economyReport.push(
-					`  📦 Kargo   : ${damageDetails.cargo_damage ?? 0}%`,
+					`  📦 Kargo   : ${damageDetails.cargo_damage ?? 0}T¢`,
 				);
 			}
 
@@ -457,6 +485,26 @@ module.exports = new ApplicationCommand({
 			// 🔹 Tandai job selesai
 			active.active = false;
 			await active.save();
+
+			try {
+				await interaction.user.send({
+					embeds: [
+						new EmbedBuilder()
+							.setTitle("💰 Nismara Coin Earned!")
+							.setColor("Green")
+							.setDescription(
+								`Kamu telah menyelesaikan job **#${active.jobId}**.\n\n` +
+								`🔹 Jarak ditempuh: **${drivenKm} km**\n` +
+								`🔹 Kamu mendapatkan: **${earnedNC} N¢**\n\n` +
+								`💳 Total NC kamu sekarang: **${currency.totalNC} N¢**`
+							)
+							.setTimestamp()
+					]
+				});
+			} catch (err) {
+				console.log("Gagal mengirim DM ke user:", err);
+			}
+
 
 			// 🔹 Beri feedback ke driver
 			await interaction.followUp({
