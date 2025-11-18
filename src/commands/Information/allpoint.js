@@ -7,7 +7,7 @@ const {
 const DiscordBot = require("../../client/DiscordBot");
 const ApplicationCommand = require("../../structure/ApplicationCommand");
 const Point = require("../../models/points");
-const PointHistory = require("../../models/pointhistory");
+const GuildSettings = require("../../models/guildsetting");
 
 module.exports = new ApplicationCommand({
   command: {
