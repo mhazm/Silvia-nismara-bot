@@ -73,7 +73,6 @@ module.exports = new ApplicationCommand({
 					'❌ Job ID tidak ditemukan di Trucky API.',
 				);
 			const job = await res.json();
-			console.log(`Fetched Job Data: ${JSON.stringify(job)}`);
 
 			// Validasi job belum selesai
 			if (job.status === 'completed') {
