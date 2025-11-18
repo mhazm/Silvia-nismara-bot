@@ -9,6 +9,9 @@ module.exports = new ApplicationCommand({
 		description: 'Statistik Special Contract kamu',
 		type: 1,
 	},
+	options: {
+		allowedRoles: ['driver'],
+	},
 	/**
 	 *
 	 * @param {DiscordBot} client

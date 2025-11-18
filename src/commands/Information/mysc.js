@@ -16,6 +16,9 @@ module.exports = new ApplicationCommand({
 		type: 1,
 		options: [],
 	},
+	options: {
+		allowedRoles: ['driver'],
+	},
 	/**
 	 *
 	 * @param {DiscordBot} client

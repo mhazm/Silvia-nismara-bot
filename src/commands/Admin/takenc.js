@@ -35,6 +35,10 @@ module.exports = new ApplicationCommand({
 			},
 		],
 	},
+	options: {
+		allowedRoles: ['manager'],
+		cooldown: 5000,
+	},
 	/**
 	 *
 	 * @param {DiscordBot} client

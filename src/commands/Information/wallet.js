@@ -28,6 +28,7 @@ module.exports = new ApplicationCommand({
 		],
 	},
 	options: {
+		allowedRoles: ['driver'],
 		cooldown: 5000,
 	},
 	/**

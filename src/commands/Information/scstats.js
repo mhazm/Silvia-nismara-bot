@@ -21,6 +21,9 @@ module.exports = new ApplicationCommand({
 			'Statistik & leaderboard Special Contract (bulanan & tahunan)',
 		type: 1,
 	},
+	options: {
+		allowedRoles: ['driver'],
+	},
 	/**
 	 *
 	 * @param {DiscordBot} client

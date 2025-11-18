@@ -9,6 +9,9 @@ module.exports = new ApplicationCommand({
         description: "Leaderboard driver berdasarkan jumlah Special Contract",
         type: 1
     },
+    options: {
+        allowedRoles: ["driver"],
+    },
 	/**
 	 *
 	 * @param {DiscordBot} client

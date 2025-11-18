@@ -19,7 +19,14 @@ module.exports = new ApplicationCommand({
 		type: 1,
 		options: [],
 	},
-
+	options: {
+		allowedRoles: ['driver'],
+	},
+	/**
+	 *
+	 * @param {DiscordBot} client
+	 * @param {ChatInputCommandInteraction} interaction
+	 */
 	run: async (client, interaction) => {
 		const userId = interaction.user.id;
 		const guildId = interaction.guild.id;
