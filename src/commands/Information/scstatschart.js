@@ -6,7 +6,7 @@ const {
 
 const DiscordBot = require("../../client/DiscordBot");
 const ApplicationCommand = require("../../structure/ApplicationCommand");
-const SCH = require("../../models/specialcontracthistory");
+const SCH = require("../../models/specialContractHistory");
 
 const { ChartJSNodeCanvas } = require("chartjs-node-canvas");
 
