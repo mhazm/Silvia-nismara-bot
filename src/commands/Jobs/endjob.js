@@ -1,7 +1,5 @@
 const {
 	ChatInputCommandInteraction,
-	ApplicationCommandOptionType,
-	AttachmentBuilder,
 	EmbedBuilder,
 	ActionRowBuilder,
 	StringSelectMenuBuilder,
@@ -10,8 +8,9 @@ const DiscordBot = require('../../client/DiscordBot');
 const ApplicationCommand = require('../../structure/ApplicationCommand');
 const Contract = require('../../models/contract');
 const ActiveJob = require('../../models/activejob');
-const Currency = require("../../models/currency");
-const CurrencyHistory = require("../../models/currencyHistory");
+const Currency = require('../../models/currency');
+const CurrencyHistory = require('../../models/currencyhistory');
+const SpecialContractHistory = require('../../models/specialContractHistory');
 
 module.exports = new ApplicationCommand({
 	command: {
@@ -22,7 +21,7 @@ module.exports = new ApplicationCommand({
 	},
 	options: {
 		allowedRoles: ['driver'],
-		cooldown: 10000,
+		cooldown: 5000,
 	},
 	/**
 	 *
@@ -81,7 +80,7 @@ module.exports = new ApplicationCommand({
 				currency = new Currency({
 					guildId,
 					userId,
-					totalNC: 0
+					totalNC: 0,
 				});
 			}
 
@@ -90,11 +89,11 @@ module.exports = new ApplicationCommand({
 
 			// Buat catatan history
 			await CurrencyHistory.create({
-			guildId,
-			userId,
-			amount: earnedNC,
-			type: "earn",
-			reason: `Job #${active.jobId}`
+				guildId,
+				userId,
+				amount: earnedNC,
+				type: 'earn',
+				reason: `Job #${active.jobId}`,
 			});
 
 			const contract = await Contract.findOne({ guildId });
@@ -134,7 +133,11 @@ module.exports = new ApplicationCommand({
 						inline: true,
 					},
 					{ name: '⏱️ Durasi', value: job.duration, inline: true },
-					{ name: "💰 Nismara Coin Didapat", value: `${earnedNC} N¢`, inline: true },
+					{
+						name: '💰 Nismara Coin Didapat',
+						value: `${earnedNC} N¢`,
+						inline: true,
+					},
 				)
 				.setThumbnail(job.driver.avatar_url)
 				.setURL(job.public_url)
@@ -486,25 +489,39 @@ module.exports = new ApplicationCommand({
 			active.active = false;
 			await active.save();
 
+			// Simpan ke SpecialContractHistory
+			await SpecialContractHistory.create({
+				guildId,
+				driverId: userId,
+				jobId: active.jobId,
+				source: job.source_company_name,
+				destination: job.destination_company_name,
+				distanceKm: job.real_driven_distance_km,
+				cargoName: job.cargo_name,
+				cargoMass: job.cargo_mass_t,
+				revenue: job.revenue,
+				rating: job.delivery_rating_details?.rating ?? 0,
+				completedAt: new Date(),
+			});
+
 			try {
 				await interaction.user.send({
 					embeds: [
 						new EmbedBuilder()
-							.setTitle("💰 Nismara Coin Earned!")
-							.setColor("Green")
+							.setTitle('💰 Nismara Coin Earned!')
+							.setColor('Green')
 							.setDescription(
 								`Kamu telah menyelesaikan job **#${active.jobId}**.\n\n` +
-								`🔹 Jarak ditempuh: **${drivenKm} km**\n` +
-								`🔹 Kamu mendapatkan: **${earnedNC} N¢**\n\n` +
-								`💳 Total NC kamu sekarang: **${currency.totalNC} N¢**`
+									`🔹 Jarak ditempuh: **${drivenKm} km**\n` +
+									`🔹 Kamu mendapatkan: **${earnedNC} N¢**\n\n` +
+									`💳 Total NC kamu sekarang: **${currency.totalNC} N¢**`,
 							)
-							.setTimestamp()
-					]
+							.setTimestamp(),
+					],
 				});
 			} catch (err) {
-				console.log("Gagal mengirim DM ke user:", err);
+				console.log('Gagal mengirim DM ke user:', err);
 			}
-
 
 			// 🔹 Beri feedback ke driver
 			await interaction.followUp({

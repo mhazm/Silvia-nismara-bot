@@ -81,7 +81,7 @@ class CommandsHandler {
 								file,
 						);
 					}
-				} catch {
+				} catch (err) {
 					error(
 						'Unable to load a command from the path: ' +
 							'src/commands/' +
@@ -89,6 +89,7 @@ class CommandsHandler {
 							'/' +
 							file,
 					);
+					console.error(err);
 				}
 			}
 		}

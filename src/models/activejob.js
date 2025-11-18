@@ -12,4 +12,6 @@ const activeJobSchema = new mongoose.Schema({
 	active: { type: Boolean, default: true },
 });
 
-module.exports = mongoose.model('ActiveJob', activeJobSchema);
+module.exports =
+  mongoose.models.ActiveJob ||
+  mongoose.model("ActiveJob", activeJobSchema);

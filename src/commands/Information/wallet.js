@@ -54,7 +54,7 @@ module.exports = new ApplicationCommand({
 			});
 		}
 
-		await interaction.deferReply();
+		await interaction.deferReply({ephemeral: true});
 
 		// Ambil currency
 		let currency = await Currency.findOne({ guildId, userId: target.id });

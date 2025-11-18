@@ -10,4 +10,6 @@ const pointHistorySchema = new mongoose.Schema({
 	createdAt: { type: Date, default: Date.now },
 });
 
-module.exports = mongoose.model('PointHistory', pointHistorySchema);
+module.exports =
+  mongoose.models.PointHistory ||
+  mongoose.model("PointHistory", pointHistorySchema);

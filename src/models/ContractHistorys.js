@@ -10,4 +10,6 @@ const contractHistorysSchema = new mongoose.Schema({
 	durationDays: { type: Number },
 });
 
-module.exports = mongoose.model('ContractHistorys', contractHistorysSchema);
+module.exports =
+  mongoose.models.ContractHistorys ||
+  mongoose.model("ContractHistorys", contractHistorysSchema);
