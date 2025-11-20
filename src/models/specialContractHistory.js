@@ -13,6 +13,7 @@ const specialContractHistorySchema = new mongoose.Schema({
   cargoMass: { type: Number, default: 0 },
   revenue: { type: Number, default: 0 },
   rating: { type: Number, default: 0 },
+  ncEarned: { type: Number, default: 0 },
 
   completedAt: { type: Date, default: Date.now }
 }, { timestamps: true });

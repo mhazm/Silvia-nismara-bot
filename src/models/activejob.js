@@ -1,10 +1,11 @@
 const mongoose = require('mongoose');
 
 const activeJobSchema = new mongoose.Schema({
-	guildId: String,
-	driverId: String,
-	jobId: String,
+	guildId: {type: String },
+	driverId: {type: String },
+	jobId: { type: String, },
 	companyName: String,
+	desinationCompany: String,
 	source: String,
 	destination: String,
 	cargo: String,
