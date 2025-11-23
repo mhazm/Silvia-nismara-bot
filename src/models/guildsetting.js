@@ -6,6 +6,7 @@ const guildSettingsSchema = new mongoose.Schema(
 		channelLog: { type: String },
 		truckyWebhookChannel: { type: String, default: null },
 		contractChannel: { type: String, default: null },
+		eventNotifyChannel: { type: String, default: null },
 
 		// Role-role khusus untuk perintah
 		roles: {

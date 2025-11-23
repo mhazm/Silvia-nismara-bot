@@ -151,8 +151,7 @@ module.exports = new Event({
 			// ==========================================================
 
 			const isHardcore =
-				(job.realistic_ldb_points && job.realistic_ldb_points > 0) ||
-				(job.points && Number(job.points) > 0);
+				(job.realistic_ldb_points && job.realistic_ldb_points > 0) || (job.realistic_leaderboard && job.realistic_leaderboard == true);
 
 			if (isHardcore) {
 				reward.hardcore = km * 1;

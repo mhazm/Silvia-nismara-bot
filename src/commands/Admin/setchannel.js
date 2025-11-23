@@ -11,6 +11,7 @@ const CHANNEL_TARGETS = {
 	truckyWebhook: { model: 'GuildSettings', key: 'truckyWebhookChannel' },
 	scChannel: { model: 'Channel', key: 'channelId' },
 	botLog: { model: 'GuildSettings', key: 'channelLog' },
+	eventNotify: { model: 'GuildSettings', key: 'eventNotifyChannel' },
 };
 
 module.exports = new ApplicationCommand({
@@ -36,6 +37,10 @@ module.exports = new ApplicationCommand({
 					{
 						name: 'Special Contract Channel',
 						value: 'scChannel',
+					},
+					{
+						name: 'Event Notify Channel',
+						value: 'eventNotify',
 					},
 				],
 			},
