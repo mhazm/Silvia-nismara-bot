@@ -61,7 +61,7 @@ module.exports = new ApplicationCommand({
 				return interaction.editReply('❌ Job ID tidak ditemukan.');
 
 			const job = await res.json();
-			if (!job?.driver?.name)
+			if (!job?.driver?.id)
 				return interaction.editReply('❌ Data job tidak valid.');
 
 			// =========================
@@ -69,7 +69,7 @@ module.exports = new ApplicationCommand({
 			// =========================
 			const driver = await DriverRegistry.findOne({
 				guildId,
-				truckyName: { $regex: `^${job.driver.name}$`, $options: 'i' },
+				truckyId: job.driver.id,
 			});
 
 			const jobCompanySource = job?.source_company_name || 'N/A';
@@ -165,7 +165,6 @@ module.exports = new ApplicationCommand({
 			// EMBED FIELDS
 			// =========================
 			const fields = [
-				{ name: '🕹️ Game Mode', value: gameMode, inline: true },
 				{
 					name: '🏢 Dari',
 					value: `${jobCompanySource} (${jobCitySource})`,
@@ -258,7 +257,8 @@ module.exports = new ApplicationCommand({
 			// DESCRIPTION
 			// =========================
 			const description =
-				`👤 Driver: **${job.driver.name}**\n` +
+				`👤 Discord: <@${discordId}>\n` +
+				`🚛 Driver: **${job.driver.name}**\n` +
 				`🕹️ Mode: **${gameMode}**\n\n` +
 				(totalPenalty > 0
 					? `⚠️ Job ini menghasilkan **${totalPenalty} penalty points**.\nTotal penalty driver saat ini: **${totalPenaltyNow} points**`
