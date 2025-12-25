@@ -10,6 +10,7 @@ class Event {
 	 * @param {{event: K, once?: boolean, run: import("discord.js").Awaitable<(client: DiscordBot, ...args: import('discord.js').ClientEvents[K]) => void> }} structure
 	 */
 	constructor(structure) {
+		Object.assign(this, structure);
 		this.data = {
 			__type__: 5, // This used for the handler
 			...structure,
