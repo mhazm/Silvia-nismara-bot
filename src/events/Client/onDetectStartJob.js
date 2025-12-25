@@ -68,13 +68,40 @@ module.exports = new Event({
 			const truckyName = job.driver?.name;
 			if (!truckyName) return;
 
+			const truckyId = job.driver?.id;
+			if (!truckyId) return;
+
+			const manajerLogChannel = message.guild.channels.cache.get(
+				settings.channelLog,
+			);
+
+			if (!manajerLogChannel) {
+				console.log(
+					'❌ Channel log manajer tidak ditemukan atau belum diatur.',
+				);
+			}
+
+			const managerRoles = settings.roles?.manager || [];
+			if (!managerRoles.length) return;
+
+			const roleMentions = managerRoles
+				.map((id) => `<@&${id}>`)
+				.join(' ');
+
 			const driver = await DriverRegistry.findOne({
 				guildId,
-				truckyName: { $regex: `^${truckyName}$`, $options: 'i' },
+				truckyId: truckyId,
 			});
 
 			if (!driver) {
 				console.log('⚠️ Driver belum ter-register, skip counting.');
+				// 📢 Log ke channel
+				if (manajerLogChannel) {
+					manajerLogChannel.send({
+						content: `${roleMentions}\n` +
+						`⚠️ Driver **${truckyName}** (Trucky ID: ${truckyId}) memulai job, namun belum terdaftar di sistem. Mohon untuk didaftarkan.`,
+					});
+				}
 				return;
 			}
 
