@@ -131,23 +131,30 @@ module.exports = new ApplicationCommand({
 			.setColor('Blue')
 			.setDescription(
 				`Halo ${targetUser} 👋\n\n` +
-					`Channel ini dibuat untuk proses **interview / diskusi**.\n` +
+					`Channel ini dibuat untuk proses **interview**.\n` +
 					`Silakan menunggu arahan dari tim **Manager**.\n\n` +
 					`🧑‍💼 Interviewer: <@&${settings.roles.manager[0]}>`,
 			)
 			.setTimestamp();
 
-		const row = new ActionRowBuilder().addComponents(
+		const rowClose = new ActionRowBuilder().addComponents(
 			new ButtonBuilder()
 				.setCustomId(`close_interview_${targetUser.id}`)
 				.setLabel('🔒 Tutup Interview')
 				.setStyle(ButtonStyle.Danger),
 		);
 
+		const rowAccept = new ActionRowBuilder().addComponents(
+			new ButtonBuilder()
+				.setCustomId(`accept_driver:${targetUser.id}`)
+				.setLabel('✅ Terima Driver')
+				.setStyle(ButtonStyle.Success),
+		);
+
 		await channel.send({
 			content: `${targetUser}`,
 			embeds: [embed],
-			components: [row],
+			components: [rowAccept, rowClose],
 		});
 
 		await interaction.editReply(
