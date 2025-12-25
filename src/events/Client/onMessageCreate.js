@@ -72,6 +72,23 @@ module.exports = new Event({
 			const truckyId = job?.driver?.id;
 			if (!truckyId) return;
 
+			const manajerLogChannel = message.guild.channels.cache.get(
+				settings.channelLog,
+			);
+
+			if (!manajerLogChannel) {
+				console.log(
+					'❌ Channel log manajer tidak ditemukan atau belum diatur.',
+				);
+			}
+
+			const managerRoles = settings.roles?.manager || [];
+			if (!managerRoles.length) return;
+
+			const roleMentions = managerRoles
+				.map((id) => `<@&${id}>`)
+				.join(' ');
+
 			const driver = await DriverRegistry.findOne({
 				guildId,
 				truckyId: truckyId,
@@ -79,6 +96,14 @@ module.exports = new Event({
 
 			if (!driver) {
 				console.log('⚠️ Driver belum ter-register, skip penalty.');
+				// 📢 Log ke channel
+				if (manajerLogChannel) {
+					manajerLogChannel.send({
+						content:
+							`${roleMentions}\n` +
+							`⚠️ Driver **${truckyName}** (Trucky ID: ${truckyId}) telah menyelesaikan job (#${jobId}), namun belum terdaftar di sistem. Mohon untuk didaftarkan.`,
+					});
+				}
 				return;
 			}
 
@@ -831,13 +856,13 @@ module.exports = new Event({
 
 				// Role yang boleh lihat data
 				const allowedRoles = [
-					settings.roles?.manager,
-					settings.roles?.moderator,
-				]; // Manager, Moderator, dsb
+					...(settings.roles?.manager || []),
+					...(settings.roles?.moderator || []),
+				];
 
 				// 🔹 Collector aktif sampai 1 hari (24 jam = 86400000 ms)
 				const collector = contractMsg.createMessageComponentCollector({
-					time: 36000000,
+					time: 3600000,
 				});
 
 				collector.on('collect', async (i) => {
