@@ -70,19 +70,29 @@ module.exports = new ApplicationCommand({
 				ephemeral: true,
 			});
 
-		// Pastikan target adalah driver
-		const isDriver = guildSettings?.roles?.driver?.some((roleId) =>
-			interaction.guild.members.cache
-				.get(target.id)
-				?.roles.cache.has(roleId),
+		// 🔑 Gabungkan role Sopir + Magang
+		const driverRoles = [
+			...(guildSettings.roles?.driver || []),
+			...(guildSettings.roles?.magang || []),
+		];
+
+		if (!driverRoles.length) {
+			return interaction.editReply(
+				'⚠️ Role driver / magang belum diset di guild settings.',
+			);
+		}
+
+		const member = await interaction.guild.members.fetch(target.id);
+
+		// ✅ Validasi: punya salah satu role
+		const isDriver = member.roles.cache.some((r) =>
+			driverRoles.includes(r.id),
 		);
 
 		if (!isDriver) {
-			return interaction.reply({
-				content:
-					'❌ User tersebut bukan driver dan tidak bisa diberi N¢.',
-				ephemeral: true,
-			});
+			return interaction.editReply(
+				'❌ User ini **bukan driver atau magang** sehingga tidak dapat diberi poin.',
+			);
 		}
 
 		// Update currency
@@ -103,6 +113,7 @@ module.exports = new ApplicationCommand({
 			guildId,
 			userId: target.id,
 			amount,
+			managerId: interaction.user.id,
 			reason,
 			type: 'earn',
 		});

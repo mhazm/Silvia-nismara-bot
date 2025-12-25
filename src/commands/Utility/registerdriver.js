@@ -13,6 +13,41 @@ function normalize(str) {
 	return str.trim().toLowerCase();
 }
 
+/**
+ * Ambil semua member Trucky (handle pagination)
+ */
+async function fetchAllTruckyMembers() {
+	let page = 1;
+	let lastPage = 1;
+	const allMembers = [];
+
+	do {
+		const res = await fetch(
+			`https://e.truckyapp.com/api/v1/company/35643/members?page=${page}`,
+			{
+				headers: {
+					'x-access-token': process.env.TRUCKY_API_KEY,
+					Accept: 'application/json',
+					'User-Agent':
+						'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36',
+				},
+			},
+		);
+
+		const json = await res.json();
+
+		if (!json?.data || !Array.isArray(json.data)) {
+			throw new Error('Invalid Trucky API response');
+		}
+
+		allMembers.push(...json.data);
+		lastPage = json.last_page;
+		page++;
+	} while (page <= lastPage);
+
+	return allMembers;
+}
+
 module.exports = new ApplicationCommand({
 	command: {
 		name: 'registerdriver',
@@ -84,28 +119,10 @@ module.exports = new ApplicationCommand({
 				);
 			}
 
-			// Fetch data driver dari Trucky
-			const res = await fetch(
-				`https://e.truckyapp.com/api/v1/company/35643/members`,
-				{
-					headers: {
-						'x-access-token': process.env.TRUCKY_API_KEY,
-						Accept: 'application/json',
-						'User-Agent':
-							'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36',
-						Referer: 'https://nismara.web.id/',
-						Origin: 'https://nismara.web.id',
-					},
-				},
-			);
-			const json = await res.json();
+			// Fetch semua driver dari Trucky (SEMUA PAGE)
+			const members = await fetchAllTruckyMembers();
 
-			const members = json?.data;
-			if (!members || !Array.isArray(members)) {
-				return interaction.editReply('❌ Gagal memuat data Trucky.');
-			}
-
-			// Matching nama Trucky (fix full match, startswith, includes)
+			// Matching nama Trucky
 			const driver =
 				members.find((m) => normalize(m.name) === truckyNameInput) ||
 				members.find((m) =>
@@ -132,6 +149,7 @@ module.exports = new ApplicationCommand({
 			const embed = new EmbedBuilder()
 				.setTitle('✅ Driver Berhasil Didaftarkan')
 				.setColor('Green')
+				.setThumbnail(targetUser.displayAvatarURL())
 				.addFields(
 					{
 						name: 'Discord User',

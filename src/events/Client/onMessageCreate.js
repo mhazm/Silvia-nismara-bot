@@ -151,7 +151,9 @@ module.exports = new Event({
 			// ==========================================================
 
 			const isHardcore =
-				(job.realistic_ldb_points && job.realistic_ldb_points > 0) || (job.realistic_leaderboard && job.realistic_leaderboard == true);
+				(job.realistic_ldb_points && job.realistic_ldb_points > 0) ||
+				(job.realistic_leaderboard &&
+					job.realistic_leaderboard == true);
 
 			if (isHardcore) {
 				reward.hardcore = km * 1;
@@ -176,8 +178,9 @@ module.exports = new Event({
 			// ==========================================================
 
 			// TOTAL FINAL NC
-			reward.total =
-				reward.base + reward.special + reward.hardcore + reward.event;
+			reward.total = Math.round(
+				reward.base + reward.special + reward.hardcore + reward.event,
+			);
 
 			console.log('--------------------------------------');
 			console.log(`🏦 FINAL NC FOR JOB #${jobId}`);
@@ -205,6 +208,7 @@ module.exports = new Event({
 					amount: isSpecialContract
 						? reward.special + reward.event
 						: reward.base + reward.event,
+					managerId: __client__.user.id,
 					type: 'earn',
 					reason: isSpecialContract
 						? `Special Contract Job #${jobId}`
@@ -227,6 +231,7 @@ module.exports = new Event({
 					guildId,
 					userId: discordId,
 					amount: reward.hardcore,
+					managerId: __client__.user.id,
 					type: 'earn',
 					reason: 'Hardcore mode bonus',
 				});
@@ -237,6 +242,7 @@ module.exports = new Event({
 					guildId,
 					userId: discordId,
 					amount: reward.event,
+					managerId: __client__.user.id,
 					type: 'earn',
 					reason: 'NC Boost Event bonus',
 				});
@@ -303,13 +309,13 @@ module.exports = new Event({
 			const vehicle = job.vehicle_damage ?? 0;
 			const trailer = job.trailers_damage ?? 0;
 			const cargo = job.cargo_damage ?? 0;
-			const maxSpeed = job.max_speed_kmh ?? 0;
+			const jobType = job.stats_type ?? 0;
 
 			const vehiclePenalty = calcVehiclePenalty(vehicle);
 			const trailerPenalty = calcTrailerPenalty(trailer);
 			const cargoPenalty = calcCargoPenalty(cargo);
 			const distancePenalty = calcDistancePenalty(distance);
-			const maximumSpeedPenalty = calcMaximumSpeedPenalty(maxSpeed);
+			const maximumSpeedPenalty = calcSpeedPenalty(jobType);
 
 			const totalPenalty =
 				vehiclePenalty +
@@ -379,8 +385,8 @@ module.exports = new Event({
 
 			if (maximumSpeedPenalty > 0) {
 				fields.push({
-					name: '⚡ Maximum Speed Penalty',
-					value: `${maxSpeed} Km/h → **${maximumSpeedPenalty}** points`,
+					name: '⚡ Speed Penalty',
+					value: `${formatStatsType(jobType)} → **${maximumSpeedPenalty}** points`,
 					inline: true,
 				});
 			}
@@ -428,8 +434,8 @@ module.exports = new Event({
 				.send(discordId, { embeds: [embedUser] })
 				.catch(() => {});
 
-            // Send special contract embed if applicable
-            if (isSpecialContract) {
+			// Send special contract embed if applicable
+			if (isSpecialContract) {
 				// Kirim embed detail job ke channel kontrak
 				const contract = await Contract.findOne({ guildId });
 				const notifyChannel = message.guild.channels.cache.get(
@@ -452,10 +458,10 @@ module.exports = new Event({
 
 				const readableStats = mapMiles[job.stats_type] || 'Unknown';
 
-                const fieldPage1 = [];
-                fieldPage1.push(
-                    {
-					    name: '🏢 Asal',
+				const fieldPage1 = [];
+				fieldPage1.push(
+					{
+						name: '🏢 Asal',
 						value: job.source_company_name,
 						inline: true,
 					},
@@ -465,50 +471,49 @@ module.exports = new Event({
 						inline: true,
 					},
 					{
-							name: '🚚 Rute',
-							value: `${job.source_city_name} → ${job.destination_city_name} (${job.real_driven_distance_km} km)`,
+						name: '🚚 Rute',
+						value: `${job.source_city_name} → ${job.destination_city_name} (${job.real_driven_distance_km} km)`,
 					},
 					{
-							name: '📦 Kargo',
-							value: `${job.cargo_name} (${job.cargo_mass_t}t)`,
-							inline: true,
+						name: '📦 Kargo',
+						value: `${job.cargo_name} (${job.cargo_mass_t}t)`,
+						inline: true,
 					},
 					{
-							name: '⏱️ Durasi',
-							value: job.duration,
-							inline: true,
+						name: '⏱️ Durasi',
+						value: job.duration,
+						inline: true,
 					},
 					{
-							name: '💰 Nismara Coin Didapat',
-							value: `${reward.total} N¢`,
+						name: '💰 Nismara Coin Didapat',
+						value: `${reward.total} N¢`,
 					},
 					{
-							name: '📊 Tipe Statistik',
-							value: formatStatsType(job.stats_type) || readableStats,
-							inline: true,
+						name: '📊 Tipe Statistik',
+						value: formatStatsType(job.stats_type) || readableStats,
+						inline: true,
 					},
-                    {
-                            name: '🗓️ Waktu Selesai',
-                            value: `<t:${actualEndAt}:F>`,
-                    }
-                );
+					{
+						name: '🗓️ Waktu Selesai',
+						value: `<t:${actualEndAt}:F>`,
+					},
+				);
 
-                if (job.delivery_rating) {
-                    fieldPage1.push({
-                        name: '⭐ Rating Pengiriman',
-                        value: `${job.delivery_rating}/5`,
-                        inline: true,
-                    });
-                }
+				if (job.delivery_rating) {
+					fieldPage1.push({
+						name: '⭐ Rating Pengiriman',
+						value: `${job.delivery_rating}/5`,
+						inline: true,
+					});
+				}
 
-                if (job.realistic_ldb_points) {
-                    fieldPage1.push({
-                        name: '🏆 Hardcore Points',
-                        value: `${job.realistic_ldb_points} points`,
-                        inline: true,
-                    });
-                }
-
+				if (job.realistic_ldb_points) {
+					fieldPage1.push({
+						name: '🏆 Hardcore Points',
+						value: `${job.realistic_ldb_points} points`,
+						inline: true,
+					});
+				}
 
 				// 🔹 PAGE 1 — Ringkasan Job
 				const page1 = new EmbedBuilder()
@@ -865,7 +870,7 @@ module.exports = new Event({
 					});
 				});
 			}
-            
+
 			// End kalau tidak ada penalty
 
 			if (totalPenalty <= 0) {
@@ -873,7 +878,14 @@ module.exports = new Event({
 				return;
 			}
 
-			await Point.findOneAndUpdate(
+			const prevPointData = await Point.findOne({
+				guildId,
+				userId: discordId,
+			});
+
+			const prevTotalPoints = prevPointData?.totalPoints || 0;
+
+			const updatedPoint = await Point.findOneAndUpdate(
 				{ guildId, userId: discordId },
 				{ $inc: { totalPoints: totalPenalty } },
 				{ upsert: true, new: true },
@@ -911,6 +923,51 @@ module.exports = new Event({
 					logChannel.send({ embeds: [embedLog] });
 				}
 			}
+
+			const PENALTY_THRESHOLDS = [10, 25, 50];
+
+			for (const threshold of PENALTY_THRESHOLDS) {
+				if (
+					prevTotalPoints < threshold &&
+					updatedPoint.totalPoints >= threshold
+				) {
+					// 🚨 Threshold TERLEWATI
+					if (settings.channelLog) {
+						const logChannel = message.guild.channels.cache.get(
+							settings.channelLog,
+						);
+
+						if (logChannel) {
+							const alertEmbed = new EmbedBuilder()
+								.setTitle('🚨 Driver Penalty Alert')
+								.setColor('DarkRed')
+								.setDescription(
+									`Driver <@${discordId}> telah mencapai **${threshold} penalty points**.`,
+								)
+								.addFields(
+									{
+										name: '📊 Total Poin Sekarang',
+										value: `${updatedPoint.totalPoints} points`,
+										inline: true,
+									},
+									{
+										name: '🧾 Job Terakhir',
+										value: `#${jobId}`,
+										inline: true,
+									},
+								)
+								.setTimestamp()
+								.setThumbnail(
+									message.guild.iconURL({
+										forceStatic: false,
+									}),
+								);
+
+							logChannel.send({ embeds: [alertEmbed] });
+						}
+					}
+				}
+			}
 		} catch (err) {
 			console.error('❌ Auto penalty error:', err);
 		}
@@ -918,27 +975,27 @@ module.exports = new Event({
 }).toJSON();
 
 function calcVehiclePenalty(dmg) {
-	if (dmg < 10) return 0;
+	if (dmg < 11) return 0;
 	return 1 + Math.floor((dmg - 10) / 5);
 }
 
 function calcTrailerPenalty(dmg) {
-	if (dmg < 7) return 0;
+	if (dmg < 8) return 0;
 	return 1 + Math.floor((dmg - 7) / 7);
 }
 
 function calcCargoPenalty(dmg) {
-	if (dmg < 5) return 0;
+	if (dmg < 6) return 0;
 	return 1 + Math.floor((dmg - 5) / 5);
 }
 
 function calcDistancePenalty(distance) {
-	if (distance < 150) return 1;
+	if (distance < 151) return 1;
 	return 0;
 }
 
-function calcMaximumSpeedPenalty(maxSpeed) {
-	if (maxSpeed > 100) return 1;
+function calcSpeedPenalty(type) {
+	if (type === 'race_miles') return 2;
 	return 0;
 }
 

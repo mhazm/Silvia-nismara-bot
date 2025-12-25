@@ -28,25 +28,39 @@ module.exports = new ApplicationCommand({
 		],
 	},
 	options: {
-		allowedRoles: ['driver'],
-		cooldown: 5000,
+		cooldown: 5000, // ❌ allowedRoles DIHAPUS
 	},
+
 	/**
-	 *
 	 * @param {DiscordBot} client
 	 * @param {ChatInputCommandInteraction} interaction
 	 */
 	run: async (client, interaction) => {
+		// ❗ Pastikan di guild
+		if (!interaction.inGuild()) {
+			return interaction.reply({
+				content: '❌ Command ini hanya bisa digunakan di server.',
+				ephemeral: true,
+			});
+		}
+
 		const guildId = interaction.guild.id;
-		const target = interaction.options.getUser('user') || interaction.user;
+		const target =
+			interaction.options.getUser('user') || interaction.user;
 
 		const guildSettings = await GuildSettings.findOne({ guildId });
 
-		const isManager = guildSettings?.roles?.manager?.some((roleId) =>
-			interaction.member.roles.cache.has(roleId),
+		// Ambil member yang menjalankan command (AMAN)
+		const invokerMember = await interaction.guild.members.fetch(
+			interaction.user.id,
 		);
 
-		// user biasa tidak bisa cek orang lain
+		// Cek manager
+		const isManager = guildSettings?.roles?.manager?.some((roleId) =>
+			invokerMember.roles.cache.has(roleId),
+		);
+
+		// User biasa tidak boleh cek wallet orang lain
 		if (target.id !== interaction.user.id && !isManager) {
 			return interaction.reply({
 				content:
@@ -55,10 +69,14 @@ module.exports = new ApplicationCommand({
 			});
 		}
 
-		await interaction.deferReply({ephemeral: true});
+		await interaction.deferReply({ ephemeral: true });
 
-		// Ambil currency
-		let currency = await Currency.findOne({ guildId, userId: target.id });
+		// Ambil / buat currency
+		let currency = await Currency.findOne({
+			guildId,
+			userId: target.id,
+		});
+
 		if (!currency) {
 			currency = await Currency.create({
 				guildId,
@@ -78,7 +96,10 @@ module.exports = new ApplicationCommand({
 		// Pagination
 		const pageSize = 10;
 		let page = 0;
-		const totalPages = Math.max(1, Math.ceil(history.length / pageSize));
+		const totalPages = Math.max(
+			1,
+			Math.ceil(history.length / pageSize),
+		);
 
 		const getPageEmbed = () => {
 			const start = page * pageSize;
@@ -90,10 +111,13 @@ module.exports = new ApplicationCommand({
 				.addFields({
 					name: '💳 Total Balance',
 					value: `**${currency.totalNC} N¢**`,
-					inline: false,
 				})
-				.setFooter({ text: `Page ${page + 1} / ${totalPages}` })
-                .setThumbnail(target.displayAvatarURL({ forceStatic: false }))
+				.setThumbnail(
+					target.displayAvatarURL({ forceStatic: false }),
+				)
+				.setFooter({
+					text: `Page ${page + 1} / ${totalPages}`,
+				})
 				.setTimestamp();
 
 			if (pageData.length > 0) {
@@ -102,8 +126,10 @@ module.exports = new ApplicationCommand({
 					value: pageData
 						.map(
 							(t) =>
-								`• **${t.amount > 0 ? '🟢 +' : '🔴 -'}${Math.abs(t.amount)} N¢** — ${t.reason} \n <t:${Math.floor(
-									t.createdAt.getTime() / 1000,
+								`• **${
+									t.amount > 0 ? '🟢 +' : '🔴 -'
+								}${Math.abs(t.amount)} N¢** — ${t.reason}\n(oleh: <@${t.managerId}>, <t:${Math.floor(
+									new Date(t.createdAt).getTime() / 1000,
 								)}:f>`,
 						)
 						.join('\n'),
@@ -118,6 +144,7 @@ module.exports = new ApplicationCommand({
 			return embed;
 		};
 
+		// Buttons
 		const prevBtn = new ButtonBuilder()
 			.setCustomId('prev_page')
 			.setLabel('⬅ Prev')
@@ -140,11 +167,12 @@ module.exports = new ApplicationCommand({
 		});
 
 		collector.on('collect', async (btn) => {
-			if (btn.user.id !== interaction.user.id)
+			if (btn.user.id !== interaction.user.id) {
 				return btn.reply({
 					content: '❌ Ini bukan tombol kamu.',
 					ephemeral: true,
 				});
+			}
 
 			if (btn.customId === 'prev_page') {
 				page = page > 0 ? page - 1 : totalPages - 1;
