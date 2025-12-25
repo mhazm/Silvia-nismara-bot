@@ -5,6 +5,10 @@ const driverLinkSchema = new mongoose.Schema({
   userId: { type: String, required: true }, // Discord user
   truckyId: { type: Number, required: true }, // Trucky User ID
   truckyName: { type: String, required: true },
+  previousUserIds: {
+			type: [String],
+			default: [],
+		},
 }, { timestamps: true });
 
 driverLinkSchema.index({ guildId: 1, userId: 1 }, { unique: true });
