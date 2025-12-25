@@ -1,6 +1,8 @@
 const { EmbedBuilder } = require('discord.js');
 const Event = require('../../structure/Event');
 const DriverLink = require('../../models/driverlink');
+const Currency = require('../../models/currency');
+const Point = require('../../models/points');
 const GuildSettings = require('../../models/guildsetting');
 
 module.exports = new Event({
@@ -18,42 +20,51 @@ module.exports = new Event({
 			const guildId = message.guild.id;
 
 			const settings = await GuildSettings.findOne({ guildId });
-			if (!settings || !settings.memberWatcherChannel) return;
+			if (!settings?.memberWatcherChannel) return;
 			if (message.channel.id !== settings.memberWatcherChannel) return;
 
 			const embed = message.embeds[0];
 
 			// =========================
-			// CEK EMBED "MEMBER LEFT"
+			// VALIDASI EMBED
 			// =========================
 			if (!embed.title || !embed.title.includes('Member Left')) return;
-			if (!embed.description) return;
-
-			// "numlock has left the Company"
-			const match = embed.description.match(/^(.+?)\s+has left/i);
-			if (!match) return;
-
-			const truckyName = match[1].trim();
-			console.log(`🚪 Trucky Member Left: ${truckyName}`);
+			if (!embed.url) return;
 
 			// =========================
-			// CARI DRIVER
+			// AMBIL TRUCKY ID DARI URL
 			// =========================
-			const driver = await DriverLink.findOne({
-				guildId,
-				truckyName: { $regex: `^${truckyName}$`, $options: 'i' },
-			});
+			const urlMatch = embed.url.match(/\/user\/(\d+)/);
+			if (!urlMatch) return;
+
+			const truckyId = Number(urlMatch[1]);
+			console.log(`🚪 Trucky Member Left | ID: ${truckyId}`);
+
+			// =========================
+			// CARI DRIVER (BERDASARKAN ID)
+			// =========================
+			const driver = await DriverLink.findOne({ guildId, truckyId });
 
 			if (!driver) {
-				console.log(`⚠️ Driver "${truckyName}" tidak ditemukan.`);
+				console.log(`⚠️ Driver Trucky ID ${truckyId} tidak ditemukan.`);
 				return;
 			}
 
+			const userId = driver.userId;
+
 			// =========================
-			// HAPUS DRIVER DARI DB
+			// HAPUS DATA DATABASE
 			// =========================
-			await DriverLink.deleteOne({ _id: driver._id });
-			console.log(`🗑️ Driver ${driver.truckyName} dihapus dari database.`);
+			await Promise.all([
+				DriverLink.deleteOne({ _id: driver._id }),
+				Currency.deleteOne({ guildId, userId }),
+				Point.deleteOne({ guildId, userId }),
+			]);
+
+			console.log(`🗑️ Data driver ${driver.truckyName} dihapus:
+- DriverLink
+- Currency
+- Point`);
 
 			// =========================
 			// REMOVE ROLE DISCORD
@@ -61,7 +72,7 @@ module.exports = new Event({
 			let removedRoles = [];
 
 			const member = await message.guild.members
-				.fetch(driver.userId)
+				.fetch(userId)
 				.catch(() => null);
 
 			if (member) {
@@ -72,7 +83,7 @@ module.exports = new Event({
 					(roleId) => member.roles.cache.has(roleId),
 				);
 
-				if (rolesToRemove.length > 0) {
+				if (rolesToRemove.length) {
 					await member.roles.remove(rolesToRemove);
 					removedRoles = rolesToRemove;
 				}
@@ -81,25 +92,21 @@ module.exports = new Event({
 			// =========================
 			// NOTIFIKASI KE MANAJEMEN
 			// =========================
-			if (!settings.channels?.channelLog) return;
+			const logChannelId = settings.channels?.channelLog;
+			if (!logChannelId) return;
 
-			const managerRoles = settings.roles?.manager || [];
-			if (!managerRoles.length) return;
-
-			const notifyChannel = message.guild.channels.cache.get(
-				settings.channels.channelLog,
-			);
+			const notifyChannel =
+				message.guild.channels.cache.get(logChannelId);
 			if (!notifyChannel) return;
 
-			const roleMentions = managerRoles
-				.map((id) => `<@&${id}>`)
-				.join(' ');
+			const managerRoles = settings.roles?.manager || [];
+			const mentions = managerRoles.map((id) => `<@&${id}>`).join(' ');
 
 			const notifyEmbed = new EmbedBuilder()
 				.setTitle('🚪 Driver Keluar dari Trucky Company')
 				.setColor('Red')
 				.setDescription(
-					'Driver telah meninggalkan **Trucky Company**.\nData dihapus dan role Discord disesuaikan.',
+					'Driver terdeteksi **keluar dari Trucky Company**.\nSemua data & role Discord telah dibersihkan.',
 				)
 				.addFields(
 					{
@@ -114,21 +121,27 @@ module.exports = new Event({
 					},
 					{
 						name: '👤 Discord User',
-						value: `<@${driver.userId}>`,
+						value: `<@${userId}>`,
 						inline: true,
+					},
+					{
+						name: '🗑️ Database Dihapus',
+						value: 'DriverLink, Currency, Point',
 					},
 					{
 						name: '🧹 Role Dicabut',
 						value:
 							removedRoles.length > 0
-								? removedRoles.map((id) => `<@&${id}>`).join(', ')
-								: 'Tidak ada role yang perlu dicabut',
+								? removedRoles
+										.map((id) => `<@&${id}>`)
+										.join(', ')
+								: 'Tidak ada',
 					},
 				)
 				.setTimestamp();
 
 			await notifyChannel.send({
-				content: roleMentions,
+				content: mentions,
 				embeds: [notifyEmbed],
 			});
 		} catch (err) {
