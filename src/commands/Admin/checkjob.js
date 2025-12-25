@@ -26,7 +26,6 @@ module.exports = new ApplicationCommand({
 		],
 	},
 	options: {
-		botDevelopers: true,
 		allowedRoles: ['manager'],
 	},
 	/**
