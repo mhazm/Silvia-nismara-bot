@@ -11,6 +11,7 @@ const DriverLink = require('../../models/driverlink');
 const Point = require('../../models/points');
 const PointHistory = require('../../models/pointhistory');
 const GuildSettings = require('../../models/guildsetting');
+const validatedJob = require('../../models/validatedJob');
 
 module.exports = new ApplicationCommand({
 	command: {
@@ -96,21 +97,32 @@ module.exports = new ApplicationCommand({
 			// =========================================
 			// 5. CEK APAKAH HARDCORE/SIMULATION
 			// =========================================
-			const mode = job.gameplay_type; // biasanya "hardcore", "simulation_active", dll
+			const mode = job.points; // biasanya "hardcore", "simulation_active", dll" realistic_leaderboard: true,  realistic_leaderboard": null,
 
-			if (!['hardcore', 'simulation_active'].includes(mode))
+			if (mode < 1)
 				return interaction.editReply(
 					'❌ Job ini tidak valid karena **bukan Hardcore atau Simulation Active**.',
 				);
 
 			// =========================================
-			// 6. CEK RATING MINIMAL 4
+			// 6. CEK RATING MINIMAL 4 + Validasi Job
 			// =========================================
 			const rating = job.delivery_rating_details?.rating ?? 0;
 
 			if (rating < 4)
 				return interaction.editReply(
 					`❌ Rating job kamu terlalu rendah!\nRating sekarang: **${rating}**, minimal **4**.`,
+				);
+
+			const alreadyValidated = await validatedJob.findOne({
+				guildId,
+				userId,
+				jobId: jobId,
+			});
+
+			if (alreadyValidated)
+				return interaction.editReply(
+					'❌ Job ini sudah pernah divalidasi sebelumnya.',
 				);
 
 			// =========================================
@@ -163,7 +175,18 @@ module.exports = new ApplicationCommand({
 			});
 
 			// =========================================
-			// 11. KIRIM DM KE DRIVER
+			// 11. SIMPAN RIWAYAT POINT VALIDATED JOB
+			// =========================================
+			await validatedJob.create({
+				guildId,
+				userId,
+				jobId: jobId,
+				distance: distance,
+				deducted: deducted,
+			});
+
+			// =========================================
+			// 12. KIRIM DM KE DRIVER
 			// =========================================
 			try {
 				const dmEmbed = new EmbedBuilder()
@@ -180,7 +203,6 @@ module.exports = new ApplicationCommand({
 							value: `${distance} km`,
 							inline: true,
 						},
-						{ name: 'Mode', value: mode, inline: true },
 						{ name: 'Rating', value: `${rating}`, inline: true },
 						{
 							name: 'Total Poin Sekarang',
@@ -196,7 +218,7 @@ module.exports = new ApplicationCommand({
 			} catch {}
 
 			// =========================================
-			// 12. LOG KE CHANNEL
+			// 13. LOG KE CHANNEL
 			// =========================================
 			const settings = await GuildSettings.findOne({ guildId });
 
@@ -230,7 +252,6 @@ module.exports = new ApplicationCommand({
 								value: `${deducted}`,
 								inline: true,
 							},
-							{ name: 'Mode', value: mode, inline: true },
 							{
 								name: 'Rating',
 								value: `${rating}`,
@@ -245,7 +266,7 @@ module.exports = new ApplicationCommand({
 			}
 
 			// =========================================
-			// 13. BALAS INTERACTION
+			// 14. BALAS INTERACTION
 			// =========================================
 			return interaction.editReply(
 				`✅ **Job berhasil divalidasi!**\n` +

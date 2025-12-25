@@ -17,15 +17,14 @@ function formatCurrency(num) {
 module.exports = new ApplicationCommand({
 	command: {
 		name: 'scstats',
-		description:
-			'Statistik & leaderboard Special Contract (bulanan & tahunan)',
+		description: 'Statistik & leaderboard Special Contract (bulanan & tahunan)',
 		type: 1,
 	},
 	options: {
 		allowedRoles: ['driver'],
 	},
+
 	/**
-	 *
 	 * @param {DiscordBot} client
 	 * @param {ChatInputCommandInteraction} interaction
 	 */
@@ -40,25 +39,21 @@ module.exports = new ApplicationCommand({
 		const startYear = new Date(now.getFullYear(), 0, 1);
 
 		// ===============================
-		//     QUERY BULAN & TAHUN
+		// DATA BULAN & TAHUN
 		// ===============================
-		const monthData = await SCH.find({
-			guildId,
-			completedAt: { $gte: startMonth },
-		});
+		const [monthData, yearData] = await Promise.all([
+			SCH.find({ guildId, completedAt: { $gte: startMonth } }),
+			SCH.find({ guildId, completedAt: { $gte: startYear } }),
+		]);
 
-		const yearData = await SCH.find({
-			guildId,
-			completedAt: { $gte: startYear },
-		});
-
-		if (!monthData.length)
+		if (!monthData.length) {
 			return interaction.editReply(
 				'📭 Belum ada Special Contract selesai bulan ini.',
 			);
+		}
 
 		// ===============================
-		//   STATISTIK BULANAN — TOTAL
+		// STATISTIK BULANAN (TOTAL)
 		// ===============================
 		const totalSC_M = monthData.length;
 		const totalKM_M = monthData.reduce((a, b) => a + b.distanceKm, 0);
@@ -70,7 +65,7 @@ module.exports = new ApplicationCommand({
 		).toFixed(2);
 
 		// ===============================
-		//       STATISTIK Personal
+		// STATISTIK PERSONAL BULANAN
 		// ===============================
 		const myData_M = monthData.filter((d) => d.driverId === userId);
 
@@ -81,10 +76,10 @@ module.exports = new ApplicationCommand({
 		const myTons = myData_M.reduce((a, b) => a + b.cargoMass, 0);
 		const myAvgRating = mySC
 			? (myData_M.reduce((a, b) => a + b.rating, 0) / mySC).toFixed(2)
-			: 0;
+			: '0.00';
 
 		// ===============================
-		//   LEADERBOARD BULANAN
+		// LEADERBOARD BULANAN (TOP 3)
 		// ===============================
 		const lbMonth = await SCH.aggregate([
 			{ $match: { guildId, completedAt: { $gte: startMonth } } },
@@ -98,8 +93,10 @@ module.exports = new ApplicationCommand({
 				},
 			},
 			{ $sort: { totalSC: -1, totalKM: -1 } },
-			{ $limit: 10 },
+			{ $limit: 3 },
 		]);
+
+		const medals = ['🥇', '🥈', '🥉'];
 
 		const lbMonthText = await Promise.all(
 			lbMonth.map(async (row, i) => {
@@ -107,26 +104,30 @@ module.exports = new ApplicationCommand({
 					.fetch(row._id)
 					.catch(() => null);
 
-				return `**#${i + 1} — ${member ? member.displayName : 'Unknown'}**
+				return `**${medals[i]} ${member ? member.displayName : 'Unknown'}**
 • SC: **${row.totalSC}**
 • KM: **${row.totalKM} km**
-• NC: **${row.totalKM}**
 • Revenue: **${formatCurrency(row.totalRevenue)} T¢**
 • Cargo: **${row.totalTons} tons**`;
 			}),
 		);
 
-		// ============================================================== EMBED PAGE 1 — BULANAN
+		// ===============================
+		// EMBED BULANAN
+		// ===============================
 		const embedMonth = new EmbedBuilder()
 			.setTitle(
-				`📦 Special Contract — Statistik Bulanan (${now.toLocaleString('id-ID', { month: 'long', year: 'numeric' })})`,
+				`📦 Statistik Bulanan — ${now.toLocaleString('id-ID', {
+					month: 'long',
+					year: 'numeric',
+				})}`,
 			)
 			.setColor('Blue')
+			.setThumbnail(interaction.guild.iconURL({ forceStatic: false }))
 			.addFields(
-				{ name: '🚛 Total SC', value: `${totalSC_M} Jobs`, inline: true },
-				{ name: '🛣️ Total KM', value: `${totalKM_M} km`, inline: true },
-				{ name: '💷 Total N¢', value: `${totalNC_M} N¢`, inline: true },
-
+				{ name: '🚛 Total SC', value: `${totalSC_M}`, inline: true },
+				{ name: '🛣️ Total KM', value: `${Math.round(totalKM_M)} km`, inline: true },
+				{ name: '💷 Total N¢', value: `${formatCurrency(totalNC_M)}`, inline: true },
 				{
 					name: '💵 Total Revenue',
 					value: `${formatCurrency(totalRevenue_M)} T¢`,
@@ -143,12 +144,12 @@ module.exports = new ApplicationCommand({
 					inline: true,
 				},
 
-				{ name: '👤 SC Kamu', value: `${mySC} Jobs`, inline: true },
-				{ name: '🛣️ KM Kamu', value: `${myKM} km`, inline: true },
-				{ name: '💷 N¢ Kamu', value: `${myNC} N¢`, inline: true },
+				{ name: '👤 SC Kamu', value: `${mySC}`, inline: true },
+				{ name: '🛣️ KM Kamu', value: `${Math.round(myKM)} km`, inline: true },
+				{ name: '💷 N¢ Kamu', value: `${formatCurrency(myNC)}`, inline: true },
 				{
 					name: '💵 Revenue Kamu',
-					value: `${formatCurrency(myRevenue)} T¢ `,
+					value: `${formatCurrency(myRevenue)} T¢`,
 					inline: true,
 				},
 				{
@@ -163,26 +164,29 @@ module.exports = new ApplicationCommand({
 				},
 
 				{
-					name: '🏆 Leaderboard Bulanan',
-					value: lbMonthText.join('\n\n'),
+					name: '🏆 Leaderboard Bulanan (Top 3)',
+					value: lbMonthText.join('\n\n') || 'Belum ada data.',
 				},
 			)
-			.setTimestamp()
-			.setThumbnail(interaction.guild.iconURL({ forceStatic: false }));
+			.setTimestamp();
 
-		// ===============================================
-		//     STATISTIK Tahunan
-		// ===============================================
+		// ===============================
+		// STATISTIK TAHUNAN
+		// ===============================
 		const totalSC_Y = yearData.length;
 		const totalKM_Y = yearData.reduce((a, b) => a + b.distanceKm, 0);
 		const totalNC_Y = totalKM_Y;
 		const totalRevenue_Y = yearData.reduce((a, b) => a + b.revenue, 0);
 		const totalTons_Y = yearData.reduce((a, b) => a + b.cargoMass, 0);
-		const avgRating_Y = (
-			yearData.reduce((a, b) => a + b.rating, 0) / totalSC_Y
-		).toFixed(2);
+		const avgRating_Y = totalSC_Y
+			? (
+					yearData.reduce((a, b) => a + b.rating, 0) / totalSC_Y
+			  ).toFixed(2)
+			: '0.00';
 
-		// Leaderboard tahunan
+		// ===============================
+		// LEADERBOARD TAHUNAN (TOP 3)
+		// ===============================
 		const lbYear = await SCH.aggregate([
 			{ $match: { guildId, completedAt: { $gte: startYear } } },
 			{
@@ -195,7 +199,7 @@ module.exports = new ApplicationCommand({
 				},
 			},
 			{ $sort: { totalSC: -1, totalKM: -1 } },
-			{ $limit: 10 },
+			{ $limit: 3 },
 		]);
 
 		const lbYearText = await Promise.all(
@@ -204,24 +208,25 @@ module.exports = new ApplicationCommand({
 					.fetch(row._id)
 					.catch(() => null);
 
-				return `**#${i + 1} — ${member ? member.displayName : 'Unknown'}**
+				return `**${medals[i]} ${member ? member.displayName : 'Unknown'}**
 • SC: **${row.totalSC}**
 • KM: **${row.totalKM} km**
-• NC: **${row.totalKM}**
 • Revenue: **${formatCurrency(row.totalRevenue)} T¢**
 • Cargo: **${row.totalTons} tons**`;
 			}),
 		);
 
-		// ============================================================== EMBED PAGE 2 — TAHUNAN
+		// ===============================
+		// EMBED TAHUNAN
+		// ===============================
 		const embedYear = new EmbedBuilder()
-			.setTitle(`📅 Statistik Tahunan (${now.getFullYear()})`)
+			.setTitle(`📅 Statistik Tahunan — ${now.getFullYear()}`)
 			.setColor('Purple')
+			.setThumbnail(interaction.guild.iconURL({ forceStatic: false }))
 			.addFields(
-				{ name: '🚛 Total SC', value: `${totalSC_Y} Jobs`, inline: true },
-				{ name: '🛣️ Total KM', value: `${totalKM_Y} km`, inline: true },
-				{ name: '💷 Total N¢', value: `${totalNC_Y} N¢`, inline: true },
-
+				{ name: '🚛 Total SC', value: `${totalSC_Y}`, inline: true },
+				{ name: '🛣️ Total KM', value: `${Math.round(totalKM_Y)} km`, inline: true },
+				{ name: '💷 Total N¢', value: `${formatCurrency(totalNC_Y)}`, inline: true },
 				{
 					name: '💵 Total Revenue',
 					value: `${formatCurrency(totalRevenue_Y)} T¢`,
@@ -237,18 +242,16 @@ module.exports = new ApplicationCommand({
 					value: `${avgRating_Y}`,
 					inline: true,
 				},
-
 				{
-					name: '🏆 Leaderboard Tahunan',
-					value: lbYearText.join('\n\n'),
+					name: '🏆 Leaderboard Tahunan (Top 3)',
+					value: lbYearText.join('\n\n') || 'Belum ada data.',
 				},
 			)
-			.setTimestamp()
-			.setThumbnail(interaction.guild.iconURL({ forceStatic: false }));
+			.setTimestamp();
 
-		// ===============================================================
-		// Pagination
-		// ===============================================================
+		// ===============================
+		// PAGINATION
+		// ===============================
 		const pages = [embedMonth, embedYear];
 		let currentPage = 0;
 
@@ -276,11 +279,12 @@ module.exports = new ApplicationCommand({
 		});
 
 		collector.on('collect', async (i) => {
-			if (i.user.id !== userId)
+			if (i.user.id !== userId) {
 				return i.reply({
 					content: '❌ Kamu tidak boleh menggunakan menu ini.',
 					ephemeral: true,
 				});
+			}
 
 			if (i.customId === 'next') currentPage++;
 			if (i.customId === 'prev') currentPage--;

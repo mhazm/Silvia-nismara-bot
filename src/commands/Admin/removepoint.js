@@ -66,19 +66,28 @@ module.exports = new ApplicationCommand({
 			);
 		}
 
-		const driverRoles = settings.roles?.driver || [];
-		const logChannelId = settings.channelLog;
+		// 🔑 Gabungkan role Sopir + Magang
+		const driverRoles = [
+			...(settings.roles?.driver || []),
+			...(settings.roles?.magang || []),
+		];
 
-		// 🔹 Ambil guild member
+		if (!driverRoles.length) {
+			return interaction.editReply(
+				'⚠️ Role driver / magang belum diset di guild settings.',
+			);
+		}
+
 		const member = await interaction.guild.members.fetch(driver.id);
 
-		// ❗ VALIDASI: apakah dia punya role driver?
+		// ✅ Validasi: punya salah satu role
 		const isDriver = member.roles.cache.some((r) =>
 			driverRoles.includes(r.id),
 		);
+
 		if (!isDriver) {
 			return interaction.editReply(
-				'❌ User ini **bukan driver** sehingga tidak dapat diberi poin.',
+				'❌ User ini **bukan driver atau magang** sehingga tidak dapat diberi poin.',
 			);
 		}
 
@@ -115,9 +124,12 @@ module.exports = new ApplicationCommand({
 		await interaction.editReply({ embeds: [embed] });
 
 		// 🔹 Logging ke channel log
-		if (logChannelId) {
-			const logChannel =
-				interaction.guild.channels.cache.get(logChannelId);
+		if (settings.channelLog) {
+				const logChannel =
+					interaction.guild.channels.cache.get(
+						settings.channelLog,
+					);
+					
 			if (logChannel) {
 				const logEmbed = new EmbedBuilder()
 					.setTitle('📝 Remove Point Log')

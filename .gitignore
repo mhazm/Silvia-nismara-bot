@@ -8,3 +8,4 @@ database.yml
 terminal.log
 src\config.js
 .prettierrc
+.token
