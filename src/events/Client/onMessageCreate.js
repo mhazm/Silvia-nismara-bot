@@ -69,9 +69,12 @@ module.exports = new Event({
 			const truckyName = job.driver?.name;
 			if (!truckyName) return;
 
+			const truckyId = job?.driver?.id;
+			if (!truckyId) return;
+
 			const driver = await DriverRegistry.findOne({
 				guildId,
-				truckyName: { $regex: `^${truckyName}$`, $options: 'i' },
+				truckyId: truckyId,
 			});
 
 			if (!driver) {
@@ -112,7 +115,7 @@ module.exports = new Event({
 			if (activeSC && activeSC.jobId === String(jobId)) {
 				isSpecialContract = true;
 
-				reward.special = km * 2; // special job = 2x
+				reward.special = Math.round(km * 2); // special job = 2x
 
 				activeSC.active = false;
 				await activeSC.save();
@@ -142,7 +145,7 @@ module.exports = new Event({
 			// ==========================================================
 
 			if (!isSpecialContract) {
-				reward.base = km * 1;
+				reward.base = Math.round(km * 1);
 				console.log(`💰 Base NC Earned: +${reward.base}`);
 			}
 
@@ -156,7 +159,7 @@ module.exports = new Event({
 					job.realistic_leaderboard == true);
 
 			if (isHardcore) {
-				reward.hardcore = km * 1;
+				reward.hardcore = Math.round(km * 1);
 				console.log(`🔥 Hardcore Bonus: +${reward.hardcore}`);
 			}
 
@@ -167,7 +170,7 @@ module.exports = new Event({
 
 			if (activeEvent && activeEvent.endAt > new Date()) {
 				eventMultiplier = activeEvent.multiplier;
-				reward.event = km * eventMultiplier;
+				reward.event = Math.round(km * eventMultiplier);
 				console.log(`🎉 Event NC Boost aktif → x${eventMultiplier}`);
 			} else {
 				console.log('No NC event active.');
