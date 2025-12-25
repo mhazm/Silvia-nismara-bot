@@ -4,6 +4,9 @@ const {
 	ChannelType,
 	PermissionsBitField,
 	EmbedBuilder,
+	ActionRowBuilder,
+	ButtonBuilder,
+	ButtonStyle,
 } = require('discord.js');
 
 const DiscordBot = require('../../client/DiscordBot');
@@ -48,14 +51,10 @@ module.exports = new ApplicationCommand({
 			);
 		}
 
-		const category = guild.channels.cache.get(
-			settings.interviewCategory,
-		);
+		const category = guild.channels.cache.get(settings.interviewCategory);
 
 		if (!category || category.type !== ChannelType.GuildCategory) {
-			return interaction.editReply(
-				'❌ Category interview tidak valid.',
-			);
+			return interaction.editReply('❌ Category interview tidak valid.');
 		}
 
 		// =========================
@@ -64,9 +63,7 @@ module.exports = new ApplicationCommand({
 		const channelName = `interview_${targetUser.username.toLowerCase()}`;
 
 		const existing = guild.channels.cache.find(
-			(c) =>
-				c.type === ChannelType.GuildText &&
-				c.name === channelName,
+			(c) => c.type === ChannelType.GuildText && c.name === channelName,
 		);
 
 		if (existing) {
@@ -81,9 +78,7 @@ module.exports = new ApplicationCommand({
 		const overwrites = [
 			{
 				id: guild.roles.everyone.id,
-				deny: [
-					PermissionsBitField.Flags.ViewChannel,
-				],
+				deny: [PermissionsBitField.Flags.ViewChannel],
 			},
 			{
 				id: targetUser.id,
@@ -142,9 +137,17 @@ module.exports = new ApplicationCommand({
 			)
 			.setTimestamp();
 
+		const row = new ActionRowBuilder().addComponents(
+			new ButtonBuilder()
+				.setCustomId(`close_interview_${targetUser.id}`)
+				.setLabel('🔒 Tutup Interview')
+				.setStyle(ButtonStyle.Danger),
+		);
+
 		await channel.send({
 			content: `${targetUser}`,
 			embeds: [embed],
+			components: [row],
 		});
 
 		await interaction.editReply(
