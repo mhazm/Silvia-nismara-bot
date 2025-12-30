@@ -64,8 +64,8 @@ module.exports = new ApplicationCommand({
 
 		// 🔑 Gabungkan role Sopir + Magang
 		const driverRoles = [
-			...(settings.roles?.driver || []),
-			...(settings.roles?.magang || []),
+			...(guildSettings.roles?.driver || []),
+			...(guildSettings.roles?.magang || []),
 		];
 
 		if (!driverRoles.length) {
@@ -109,6 +109,7 @@ module.exports = new ApplicationCommand({
 			guildId,
 			userId: target.id,
 			amount: -amount,
+			managerId: interaction.user.id,
 			reason,
 			type: 'spend',
 		});
