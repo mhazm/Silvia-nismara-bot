@@ -69,6 +69,8 @@ module.exports = new Event({
 			const truckyName = job.driver?.name;
 			if (!truckyName) return;
 
+			const gameMode = job.game_mode || 'sp';
+
 			const truckyId = job?.driver?.id;
 			if (!truckyId) return;
 
@@ -233,9 +235,7 @@ module.exports = new Event({
 				await CurrencyHistory.create({
 					guildId,
 					userId: discordId,
-					amount: isSpecialContract
-						? reward.special + reward.event
-						: reward.base + reward.event,
+					amount: isSpecialContract ? reward.special : reward.base,
 					managerId: __client__.user.id,
 					type: 'earn',
 					reason: isSpecialContract
@@ -339,11 +339,25 @@ module.exports = new Event({
 			const cargo = job.cargo_damage ?? 0;
 			const jobType = job.stats_type ?? 0;
 
-			const vehiclePenalty = calcVehiclePenalty(vehicle);
-			const trailerPenalty = calcTrailerPenalty(trailer);
-			const cargoPenalty = calcCargoPenalty(cargo);
+			// 🚨 PENALTY CALCULATION FUNCTIONS
 			const distancePenalty = calcDistancePenalty(distance);
 			const maximumSpeedPenalty = calcSpeedPenalty(jobType);
+
+			let vehiclePenalty = 0;
+			let trailerPenalty = 0;
+			let cargoPenalty = 0;
+
+			if (gameMode === 'truckersmp') {
+				// 🚨 TruckersMP Rules
+				vehiclePenalty = calcVehicleTmpPenalty(vehicle, 21);
+				trailerPenalty = calcTrailerTmpPenalty(trailer, 15);
+				cargoPenalty = calcCargoTmpPenalty(cargo, 11);
+			} else {
+				// 🌍 Default / Singleplayer Rules
+				vehiclePenalty = calcVehiclePenalty(vehicle);
+				trailerPenalty = calcTrailerPenalty(trailer);
+				cargoPenalty = calcCargoPenalty(cargo);
+			}
 
 			const totalPenalty =
 				vehiclePenalty +
@@ -354,6 +368,17 @@ module.exports = new Event({
 
 			// Build dynamic fields — hanya tampil kalau ada poin
 			const fields = [];
+
+			if (totalPenalty > 0) {
+				fields.push({
+					name: '⚖️ Penalty Rule Set',
+					value:
+						gameMode === 'truckersmp'
+							? 'TruckersMP Damage Rule'
+							: 'Standard Damage Rule',
+					inline: true,
+				});
+			}
 
 			if (reward.hardcore > 0) {
 				fields.push({
@@ -1015,6 +1040,21 @@ function calcTrailerPenalty(dmg) {
 function calcCargoPenalty(dmg) {
 	if (dmg < 6) return 0;
 	return 1 + Math.floor((dmg - 5) / 5);
+}
+
+function calcVehicleTmpPenalty(dmg, step) {
+	if (dmg < step) return 0;
+	return Math.floor(dmg / step);
+}
+
+function calcTrailerTmpPenalty(dmg, step) {
+	if (dmg < step) return 0;
+	return Math.floor(dmg / step);
+}
+
+function calcCargoTmpPenalty(dmg, step) {
+	if (dmg < step) return 0;
+	return Math.floor(dmg / step);
 }
 
 function calcDistancePenalty(distance) {
