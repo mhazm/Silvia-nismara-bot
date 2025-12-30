@@ -14,6 +14,7 @@ const Currency = require('../../models/currency');
 const CurrencyHistory = require('../../models/currencyhistory');
 const NCEvent = require('../../models/ncevent');
 const Contract = require('../../models/contract');
+const jobHistory = require('../../models/jobHistory');
 const sendSpecialContractEmbed = require('../../utils/sendSpecialContractEmbed');
 
 module.exports = new Event({
@@ -110,6 +111,65 @@ module.exports = new Event({
 			}
 
 			const discordId = driver.userId;
+
+			const gameName = mapGame(job.game_id);
+
+			// ==========================================================
+			//  ⭐ Validasi Job History (untuk menghindari duplikasi)
+			// ==========================================================
+			const lockId = `${process.pid}-${Date.now()}`;
+			const LOCK_TIMEOUT = 1000 * 60 * 5;
+
+			let jobLock;
+
+			try {
+				jobLock = await jobHistory.findOneAndUpdate(
+					{
+						guildId,
+						jobId: String(jobId),
+						$or: [
+							{ status: { $exists: false } },
+							{ status: 'failed' },
+							{
+								status: 'processing',
+								lockedAt: {
+									$lt: new Date(Date.now() - LOCK_TIMEOUT),
+								},
+							},
+						],
+					},
+					{
+						$set: {
+							status: 'processing',
+							lockId,
+							lockedAt: new Date(),
+							updatedAt: new Date(),
+						},
+						$setOnInsert: {
+							guildId,
+							jobId: String(jobId),
+							driverId: discordId,
+							truckyId,
+							createdAt: new Date(),
+						},
+					},
+					{ upsert: true, new: true },
+				);
+			} catch (err) {
+				// 🔥 INI YANG PENTING
+				if (err.code === 11000) {
+					console.log(
+						`⛔ Job #${jobId} duplicate webhook, skip silently.`,
+					);
+					return;
+				}
+				throw err;
+			}
+
+			// ❌ GAGAL LOCK → STOP
+			if (!jobLock || jobLock.lockId !== lockId) {
+				return;
+			}
 
 			// ==========================================================
 			//  ⭐ UNIVERSAL NC REWARD SYSTEM (CLEAN + MODULAR)
@@ -928,7 +988,6 @@ module.exports = new Event({
 
 			if (totalPenalty <= 0) {
 				console.log('✔ No penalty for this job.');
-				return;
 			}
 
 			const prevPointData = await Point.findOne({
@@ -1021,6 +1080,74 @@ module.exports = new Event({
 					}
 				}
 			}
+
+			console.log('LOCK ID LOCAL:', lockId);
+
+			const current = await jobHistory.findOne({
+				guildId,
+				jobId: String(jobId),
+			});
+
+			console.log('LOCK ID DB:', current?.lockId);
+
+			// ==========================================================
+			//  🚛 SAVE JOB HISTORY WITH DATA
+			// ==========================================================
+			const result = await jobHistory.updateOne(
+				{ guildId, jobId: String(jobId), lockId },
+				{
+					$set: {
+						game: mapGame(job.game_id),
+						gameMode,
+						statsType: formatStatsType(job.stats_type),
+
+						sourceCity: job.source_city_name,
+						destinationCity: job.destination_city_name,
+						sourceCompany: job.source_company_name,
+						destinationCompany: job.destination_company_name,
+
+						cargoName: job.cargo_name,
+						cargoMass: job.cargo_mass_t ?? 0,
+
+						distanceKm: job.real_driven_distance_km ?? 0,
+						durationSeconds: job.real_driving_time_seconds ?? 0,
+						revenue: job.revenue ?? 0,
+
+						damage: {
+							vehicle: job.vehicle_damage ?? 0,
+							trailer: job.trailers_damage ?? 0,
+							cargo: job.cargo_damage ?? 0,
+						},
+
+						nc: {
+							base: reward.base,
+							special: reward.special,
+							hardcore: reward.hardcore,
+							event: reward.event,
+							total: reward.total,
+						},
+
+						penalty: {
+							vehicle: vehiclePenalty,
+							trailer: trailerPenalty,
+							cargo: cargoPenalty,
+							speed: maximumSpeedPenalty,
+							distance: distancePenalty,
+							total: totalPenalty,
+						},
+
+						isSpecialContract,
+						status: 'completed',
+						completedAt: new Date(job.completed_at),
+						updatedAt: new Date(),
+					},
+					$unset: {
+						lockId: '',
+						lockedAt: '',
+					},
+				},
+			);
+			console.log('Job history updated:', result.nModified === 1);
 		} catch (err) {
 			console.error('❌ Auto penalty error:', err);
 		}
@@ -1074,4 +1201,10 @@ function formatStatsType(type) {
 		.split('_') // ["real", "miles"]
 		.map((w) => w.charAt(0).toUpperCase() + w.slice(1)) // ["Real", "Miles"]
 		.join(' '); // "Real Miles"
+}
+
+function mapGame(game) {
+	if (game === 1 || game === '1') return 'Euro Truck Simulator 2';
+	if (game === 2 || game === '2') return 'American Truck Simulator';
+	return 'Unknown';
 }
