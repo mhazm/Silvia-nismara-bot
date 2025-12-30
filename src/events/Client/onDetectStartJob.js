@@ -4,17 +4,17 @@ const {
 	StringSelectMenuBuilder,
 } = require('discord.js');
 const Event = require('../../structure/Event');
-const Point = require('../../models/points');
-const PointHistory = require('../../models/pointhistory');
 const DriverRegistry = require('../../models/driverlink');
 const GuildSettings = require('../../models/guildsetting');
 const ActiveJob = require('../../models/activejob');
-const SpecialContractHistory = require('../../models/specialContractHistory');
-const Currency = require('../../models/currency');
-const CurrencyHistory = require('../../models/currencyhistory');
-const NCEvent = require('../../models/ncevent');
+const JobHistory = require('../../models/jobHistory');
 const Contract = require('../../models/contract');
-const sendSpecialContractEmbed = require('../../utils/sendSpecialContractEmbed');
+const {
+	applyCancelPenalty,
+} = require('../../services/cancelJobPenalty.service');
+const { notifyPointResult } = require('../../services/cancelJobNotify.service');
+
+const PENALTY_POINTS = 5;
 
 module.exports = new Event({
 	event: 'messageCreate',
@@ -98,14 +98,16 @@ module.exports = new Event({
 				// 📢 Log ke channel
 				if (manajerLogChannel) {
 					manajerLogChannel.send({
-						content: `${roleMentions}\n` +
-						`⚠️ Driver **${truckyName}** (Trucky ID: ${truckyId}) memulai job, namun belum terdaftar di sistem. Mohon untuk didaftarkan.`,
+						content:
+							`${roleMentions}\n` +
+							`⚠️ Driver **${truckyName}** (Trucky ID: ${truckyId}) memulai job, namun belum terdaftar di sistem. Mohon untuk didaftarkan.`,
 					});
 				}
 				return;
 			}
 
 			const discordId = driver.userId;
+			const gameName = mapGame(job.game_id);
 
 			if (job.driver.id !== driver.truckyId) {
 				console.log(
@@ -114,6 +116,73 @@ module.exports = new Event({
 				return;
 			}
 
+			// Cek apakah ada job ongoing lain untuk driver ini
+			const existingJob = await JobHistory.findOne({
+				guildId,
+				driverId: discordId,
+				jobStatus: 'ONGOING',
+			});
+
+			if (existingJob && existingJob.jobId !== jobId) {
+				await JobHistory.updateOne(
+					{ _id: existingJob._id },
+					{
+						jobStatus: 'CANCELED',
+						completedAt: new Date(),
+						error: 'START_NEW_JOB',
+					},
+				);
+
+				// 🔥 APPLY PENALTY
+				if (!existingJob.cancelPenaltyApplied) {
+					await applyCancelPenalty({
+						guildId,
+						userId: discordId,
+						jobId: existingJob.jobId,
+						managerId: __client__.user.id,
+					});
+
+					await notifyPointResult({
+						client: __client__,
+						guildId,
+						userId: discordId,
+						type: 'penalty',
+						points: PENALTY_POINTS,
+						jobId: jobId,
+						reason: 'Memulai job baru sebelum menyelesaikan job sebelumnya (Cancel Job)',
+					});
+
+					await JobHistory.updateOne(
+						{ _id: existingJob._id },
+						{ cancelPenaltyApplied: true },
+					);
+				}
+			}
+
+			// Cek apakah job sudah ada di history
+			const alreadyExists = await JobHistory.findOne({
+				guildId,
+				jobId,
+			});
+
+			if (alreadyExists) {
+				console.log(`[JOB START IGNORED] Job ${jobId} already exists`);
+				return;
+			}
+
+			// Simpan ke JobHistory
+			await JobHistory.create({
+				guildId,
+				jobId,
+				driverId: discordId,
+				truckyId,
+				game: gameName,
+				jobStatus: 'ONGOING',
+				status: 'idle',
+				startedAt: new Date(),
+			});
+
+			// Cek apakah ini adalah special contract
 			const contract = await Contract.findOne({ guildId });
 			const notifyChannel = message.guild.channels.cache.get(
 				contract.channelId,
@@ -142,7 +211,7 @@ module.exports = new Event({
 				driverId: discordId,
 				jobId: jobId,
 				companyName: source,
-                destinationCompany: destination,
+				destinationCompany: destination,
 				source: job.source_city_name,
 				destination: job.destination_city_name,
 				cargo: job.cargo_name,
@@ -163,7 +232,11 @@ module.exports = new Event({
 					url: job.driver.public_url,
 				})
 				.addFields(
-					{ name: '🚛 Driver', value: `<@${discordId}>`, inline: true },
+					{
+						name: '🚛 Driver',
+						value: `<@${discordId}>`,
+						inline: true,
+					},
 					{
 						name: '🏢 Perusahaan Awal',
 						value: job.source_company_name,
@@ -215,11 +288,13 @@ module.exports = new Event({
 			const embedUser = new EmbedBuilder()
 				.setTitle(`🚛 Started Job - Job #${jobId}`)
 				.setColor('Green')
-				.setDescription(`Kami mencatat bahwa Anda telah memulai job kontrak spesial.\n` +
-                    `Pastikan untuk menyelesaikan job ini untuk mendapatkan reward dan menjaga reputasi Anda!` +
-                    `\n\n**Detail Job:**`)
-                .addFields(
-                    {
+				.setDescription(
+					`Kami mencatat bahwa Anda telah memulai job kontrak spesial.\n` +
+						`Pastikan untuk menyelesaikan job ini untuk mendapatkan reward dan menjaga reputasi Anda!` +
+						`\n\n**Detail Job:**`,
+				)
+				.addFields(
+					{
 						name: '🏢 Perusahaan Awal',
 						value: job.source_company_name,
 						inline: true,
@@ -238,16 +313,21 @@ module.exports = new Event({
 						value: `${job.cargo_name} (${job.cargo_mass_t} t)`,
 						inline: true,
 					},
-                )
+				)
 				.setTimestamp()
 				.setThumbnail(message.guild.iconURL({ forceStatic: false }));
 
 			__client__.users
 				.send(discordId, { embeds: [embedUser] })
 				.catch(() => {});
-
 		} catch (err) {
 			console.error('❌ Auto penalty error:', err);
 		}
 	},
 }).toJSON();
+
+function mapGame(game) {
+	if (game === 1 || game === '1') return 'Euro Truck Simulator 2';
+	if (game === 2 || game === '2') return 'American Truck Simulator';
+	return 'Unknown';
+}

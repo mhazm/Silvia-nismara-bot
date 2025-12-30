@@ -115,59 +115,65 @@ module.exports = new Event({
 			const gameName = mapGame(job.game_id);
 
 			// ==========================================================
+			//  ⭐ FETCH JOB HISTORY
+			// ==========================================================
+			const driverJob = await jobHistory.findOne({
+				guildId,
+				jobId,
+			});
+
+			if (!driverJob) {
+				console.log(`[JOB COMPLETED IGNORED] Job ${jobId} not found`);
+				return;
+			}
+
+			if (driverJob.jobStatus !== 'ONGOING') {
+				console.log(
+					`[JOB COMPLETED IGNORED] Job ${jobId} status is ${driverJob.jobStatus}`,
+				);
+				return;
+			}
+
+			if (driverJob.status === 'completed') {
+				console.log(`[JOB COMPLETED SKIPPED] Already completed`);
+				return;
+			}
+
+			// ==========================================================
 			//  ⭐ Validasi Job History (untuk menghindari duplikasi)
 			// ==========================================================
 			const lockId = `${process.pid}-${Date.now()}`;
 			const LOCK_TIMEOUT = 1000 * 60 * 5;
+			const now = new Date();
+			const lockExpiry = new Date(Date.now() - LOCK_TIMEOUT);
 
-			let jobLock;
-
-			try {
-				jobLock = await jobHistory.findOneAndUpdate(
-					{
-						guildId,
-						jobId: String(jobId),
-						$or: [
-							{ status: { $exists: false } },
-							{ status: 'failed' },
-							{
-								status: 'processing',
-								lockedAt: {
-									$lt: new Date(Date.now() - LOCK_TIMEOUT),
-								},
-							},
-						],
-					},
-					{
-						$set: {
-							status: 'processing',
-							lockId,
-							lockedAt: new Date(),
-							updatedAt: new Date(),
+			const jobLock = await jobHistory.findOneAndUpdate(
+				{
+					guildId,
+					jobId,
+					jobStatus: 'ONGOING',
+					$or: [
+						{ status: 'failed' },
+						{
+							status: 'idle',
 						},
-						$setOnInsert: {
-							guildId,
-							jobId: String(jobId),
-							driverId: discordId,
-							truckyId,
-							createdAt: new Date(),
-						},
+					],
+				},
+				{
+					$set: {
+						status: 'processing',
+						lockId,
+						lockedAt: now,
 					},
-					{ upsert: true, new: true },
-				);
-			} catch (err) {
-				// 🔥 INI YANG PENTING
-				if (err.code === 11000) {
-					console.log(
-						`⛔ Job #${jobId} duplicate webhook, skip silently.`,
-					);
-					return;
-				}
-				throw err;
-			}
+				},
+				{
+					new: true, // 🔥 WAJIB
+				},
+			);
 
-			// ❌ GAGAL LOCK → STOP
+			// ❌ GAGAL LOCK
 			if (!jobLock || jobLock.lockId !== lockId) {
+				console.log(`⛔ Job #${jobId} lock failed or already handled.`);
 				return;
 			}
 
@@ -1100,6 +1106,7 @@ module.exports = new Event({
 						game: mapGame(job.game_id),
 						gameMode,
 						statsType: formatStatsType(job.stats_type),
+						jobStatus: 'COMPLETED',
 
 						sourceCity: job.source_city_name,
 						destinationCity: job.destination_city_name,

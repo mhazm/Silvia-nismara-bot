@@ -10,12 +10,19 @@ const jobHistorySchema = new mongoose.Schema(
 		// 🔐 Distributed Lock
 		status: {
 			type: String,
-			enum: ['processing', 'completed', 'failed'],
-			default: 'processing',
+			enum: ['processing', 'completed', 'failed', 'idle'],
+			default: 'idle',
 			index: true,
 		},
 		lockId: { type: String },
 		lockedAt: { type: Date },
+
+		jobStatus: {
+			type: String,
+			enum: ['ONGOING', 'COMPLETED', 'CANCELED', 'TIMEOUT'],
+			default: 'ONGOING',
+			index: true,
+		},
 
 		// Game info
 		game: String, // ETS2 / ATS
@@ -62,6 +69,11 @@ const jobHistorySchema = new mongoose.Schema(
 		},
 
 		isSpecialContract: { type: Boolean, default: false },
+		cancelPenaltyApplied: {
+			type: Boolean,
+			default: false,
+			index: true,
+		},
 
 		error: String,
 	},
