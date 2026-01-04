@@ -9,7 +9,7 @@ const ApplicationCommand = require('../../structure/ApplicationCommand');
 const Contract = require('../../models/contract');
 const ActiveJob = require('../../models/activejob');
 const Currency = require('../../models/currency');
-const CurrencyHistory = require('../../models/currencyhistory');
+const CurrencyHistory = require('../../models/currencyHistory');
 const SpecialContractHistory = require('../../models/specialContractHistory');
 
 module.exports = new ApplicationCommand({

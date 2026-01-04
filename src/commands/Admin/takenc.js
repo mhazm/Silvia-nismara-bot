@@ -6,7 +6,7 @@ const {
 const ApplicationCommand = require('../../structure/ApplicationCommand');
 const DiscordBot = require('../../client/DiscordBot');
 const Currency = require('../../models/currency');
-const CurrencyHistory = require('../../models/currencyhistory');
+const CurrencyHistory = require('../../models/currencyHistory');
 const GuildSettings = require('../../models/guildsetting');
 
 module.exports = new ApplicationCommand({

@@ -13,7 +13,7 @@ const ApplicationCommand = require('../../structure/ApplicationCommand.js');
 const Point = require('../../models/points.js');
 const PointHistory = require('../../models/pointhistory.js');
 const Currency = require('../../models/currency.js');
-const CurrencyHistory = require('../../models/currencyhistory.js');
+const CurrencyHistory = require('../../models/currencyHistory.js');
 const GuildSettings = require('../../models/guildsetting.js');
 
 module.exports = new ApplicationCommand({
