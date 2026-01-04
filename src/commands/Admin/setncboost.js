@@ -7,6 +7,7 @@ const DiscordBot = require('../../client/DiscordBot');
 const ApplicationCommand = require('../../structure/ApplicationCommand');
 const NCEvent = require('../../models/ncevent');
 const GuildSettings = require('../../models/guildsetting');
+const NCEventHistory = require('../../models/nceventHistory');
 
 function parseDuration(str) {
 	const match = str.match(/^(\d+)([smhd])$/);
@@ -33,24 +34,35 @@ module.exports = new ApplicationCommand({
 		options: [
 			{
 				name: 'multiplier',
-				description: 'Multiplier NC Boost (contoh: 2 untuk 2x)',
 				type: ApplicationCommandOptionType.Number,
 				required: true,
+				description: 'Multiplier NC Boost (contoh: 2 untuk 2x)',
 			},
 			{
 				name: 'duration',
-				description:
-					'Durasi event (contoh: 7d untuk hari, 72h untuk jam, 30m untuk menit)',
 				type: ApplicationCommandOptionType.String,
 				required: true,
+				description: 'Durasi event (contoh: 7d, 12h, 30m)',
+			},
+			{
+				name: 'nama_event',
+				type: ApplicationCommandOptionType.String,
+				required: true,
+				description: 'Nama event NC Boost',
+			},
+			{
+				name: 'image_url',
+				type: ApplicationCommandOptionType.String,
+				required: true,
+				description: 'URL gambar event NC Boost',
 			},
 		],
 	},
 	options: {
 		allowedRoles: ['manager'],
 	},
+
 	/**
-	 *
 	 * @param {DiscordBot} client
 	 * @param {ChatInputCommandInteraction} interaction
 	 */
@@ -58,51 +70,81 @@ module.exports = new ApplicationCommand({
 		await interaction.deferReply();
 
 		const guildId = interaction.guild.id;
+		const userId = interaction.user.id;
+
 		const multiplier = interaction.options.getNumber('multiplier');
 		const durationStr = interaction.options.getString('duration');
+		const nameEvent = interaction.options.getString('nama_event');
+		const imageUrl = interaction.options.getString('image_url');
+
+		if (!/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i.test(imageUrl)) {
+			return interaction.editReply(
+				'⚠️ URL gambar tidak valid. Gunakan link langsung ke file gambar.',
+			);
+		}
 
 		const durationMs = parseDuration(durationStr);
-		if (!durationMs)
+		if (!durationMs) {
 			return interaction.editReply(
 				'❌ Format durasi tidak valid. Gunakan contoh: 7d, 12h, 30m',
 			);
+		}
 
-		const endAt = new Date(Date.now() + durationMs);
+		const startDate = new Date();
+		const endAt = new Date(startDate.getTime() + durationMs);
 
+		// 🔹 Replace / buat event aktif
 		await NCEvent.findOneAndUpdate(
 			{ guildId },
-			{ guildId, multiplier, endAt },
+			{
+				guildId,
+				multiplier,
+				nameEvent,
+				imageUrl,
+				setBy: userId,
+				setAt: startDate,
+				endAt,
+			},
 			{ upsert: true },
 		);
+
+		// 🔹 Simpan history (START EVENT)
+		await NCEventHistory.create({
+			guildId,
+			multiplier,
+			nameEvent,
+			imageUrl,
+			setBy: userId,
+			startDate,
+		});
 
 		const settings = await GuildSettings.findOne({ guildId });
 		const channelNotif = interaction.guild.channels.cache.get(
 			settings?.eventNotifyChannel,
 		);
 
-		if (!channelNotif) {
-			return interaction.editReply(
-				`✅ **NC Boost Event Aktif!**\nMultiplier: **x${multiplier}**\nBerakhir: <t:${Math.floor(endAt.getTime() / 1000)}:F>\n\n` +
-				'⚠️ Namun, saluran notifikasi event belum diatur. Gunakan perintah `/setchannel` untuk mengaturnya.',
-			);
-		} 
-
 		if (channelNotif) {
-			const notifEmbed = new EmbedBuilder()
-				.setTitle('🔔 NC Boost Event Dimulai!')
+			const embed = new EmbedBuilder()
+				.setTitle(`🔔 ${nameEvent} NC Boost Event Dimulai!`)
 				.setColor('Yellow')
 				.setDescription(
-					`Event NC Boost dengan multiplier **x${multiplier}** telah resmi dimulai.\n\n` +
-					`Ayo segera naik ke truck mu dan lakukan banyak pengiriman 🚚💨\n` +
-					`Event ini akan berakhir pada <t:${Math.floor(endAt.getTime() / 1000)}:F> (<t:${Math.floor(endAt.getTime() / 1000)}:R>)`,
+					`Event **${nameEvent}** dengan multiplier **x${multiplier}** telah dimulai.\n\n` +
+						`🚚 Ayo lakukan pengiriman sebanyak mungkin!\n\n` +
+						`🕒 Berakhir: <t:${Math.floor(
+							endAt.getTime() / 1000,
+						)}:F> (<t:${Math.floor(endAt.getTime() / 1000)}:R>)`,
 				)
+				.setImage(imageUrl)
 				.setTimestamp()
 				.setFooter({ text: 'Nismara Transport - Event Notification' });
-			channelNotif.send({ embeds: [notifEmbed] });
+
+			await channelNotif.send({ embeds: [embed] });
 		}
 
 		return interaction.editReply(
-			`✅ **NC Boost Event Aktif!**\nMultiplier: **x${multiplier}**\nBerakhir: <t:${Math.floor(endAt.getTime() / 1000)}:F>`,
+			`✅ **${nameEvent} NC Boost Event Aktif!**\n` +
+				`Multiplier: **x${multiplier}**\n` +
+				`Berakhir: <t:${Math.floor(endAt.getTime() / 1000)}:F>`,
 		);
 	},
 }).toJSON();

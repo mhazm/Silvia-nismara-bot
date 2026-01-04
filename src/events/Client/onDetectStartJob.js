@@ -149,7 +149,7 @@ module.exports = new Event({
 						type: 'penalty',
 						points: PENALTY_POINTS,
 						jobId: jobId,
-						reason: 'Memulai job baru sebelum menyelesaikan job sebelumnya (Cancel Job)',
+						reason: `Cancel Job Penalty: Started a new job (#${jobId}) before completing the previous one (#${existingJob.jobId})`,
 					});
 
 					await JobHistory.updateOne(

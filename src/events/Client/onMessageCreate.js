@@ -996,92 +996,97 @@ module.exports = new Event({
 				console.log('✔ No penalty for this job.');
 			}
 
-			const prevPointData = await Point.findOne({
-				guildId,
-				userId: discordId,
-			});
+			// ==========================================================
+			//  🚨 APPLY PENALTY POINT
+			// ==========================================================
+			if (totalPenalty > 0) {
+				const prevPointData = await Point.findOne({
+					guildId,
+					userId: discordId,
+				});
 
-			const prevTotalPoints = prevPointData?.totalPoints || 0;
+				const prevTotalPoints = prevPointData?.totalPoints || 0;
 
-			const updatedPoint = await Point.findOneAndUpdate(
-				{ guildId, userId: discordId },
-				{ $inc: { totalPoints: totalPenalty } },
-				{ upsert: true, new: true },
-			);
-
-			await PointHistory.create({
-				guildId,
-				userId: discordId,
-				managerId: __client__.user.id,
-				points: totalPenalty,
-				type: 'add',
-				reason: `Automatic Penalty — Job #${jobId}`,
-			});
-
-			if (settings.channelLog && totalPenalty > 0) {
-				const logChannel = message.guild.channels.cache.get(
-					settings.channelLog,
+				const updatedPoint = await Point.findOneAndUpdate(
+					{ guildId, userId: discordId },
+					{ $inc: { totalPoints: totalPenalty } },
+					{ upsert: true, new: true },
 				);
 
-				if (logChannel) {
-					const embedLog = new EmbedBuilder()
-						.setTitle(
-							`⚠️ Automatic Penalty Applied - Job #${jobId}`,
-						)
-						.setColor('Red')
-						.setDescription(
-							`Driver: <@${discordId}>\nTotal Penalty: **${totalPenalty} points**`,
-						)
-						.addFields(fields) // <-- field dinamis
-						.setTimestamp()
-						.setThumbnail(
-							message.guild.iconURL({ forceStatic: false }),
-						);
+				await PointHistory.create({
+					guildId,
+					userId: discordId,
+					managerId: __client__.user.id,
+					points: totalPenalty,
+					type: 'add',
+					reason: `Automatic Penalty — Job #${jobId}`,
+				});
 
-					logChannel.send({ embeds: [embedLog] });
+				if (settings.channelLog && totalPenalty > 0) {
+					const logChannel = message.guild.channels.cache.get(
+						settings.channelLog,
+					);
+
+					if (logChannel) {
+						const embedLog = new EmbedBuilder()
+							.setTitle(
+								`⚠️ Automatic Penalty Applied - Job #${jobId}`,
+							)
+							.setColor('Red')
+							.setDescription(
+								`Driver: <@${discordId}>\nTotal Penalty: **${totalPenalty} points**`,
+							)
+							.addFields(fields) // <-- field dinamis
+							.setTimestamp()
+							.setThumbnail(
+								message.guild.iconURL({ forceStatic: false }),
+							);
+
+						logChannel.send({ embeds: [embedLog] });
+					}
 				}
-			}
 
-			const PENALTY_THRESHOLDS = [10, 25, 50];
+				const PENALTY_THRESHOLDS = [10, 25, 50];
 
-			for (const threshold of PENALTY_THRESHOLDS) {
-				if (
-					prevTotalPoints < threshold &&
-					updatedPoint.totalPoints >= threshold
-				) {
-					// 🚨 Threshold TERLEWATI
-					if (settings.channelLog) {
-						const logChannel = message.guild.channels.cache.get(
-							settings.channelLog,
-						);
+				for (const threshold of PENALTY_THRESHOLDS) {
+					if (
+						prevTotalPoints < threshold &&
+						updatedPoint.totalPoints >= threshold
+					) {
+						// 🚨 Threshold TERLEWATI
+						if (settings.channelLog) {
+							const logChannel = message.guild.channels.cache.get(
+								settings.channelLog,
+							);
 
-						if (logChannel) {
-							const alertEmbed = new EmbedBuilder()
-								.setTitle('🚨 Driver Penalty Alert')
-								.setColor('DarkRed')
-								.setDescription(
-									`Driver <@${discordId}> telah mencapai **${threshold} penalty points**.`,
-								)
-								.addFields(
-									{
-										name: '📊 Total Poin Sekarang',
-										value: `${updatedPoint.totalPoints} points`,
-										inline: true,
-									},
-									{
-										name: '🧾 Job Terakhir',
-										value: `#${jobId}`,
-										inline: true,
-									},
-								)
-								.setTimestamp()
-								.setThumbnail(
-									message.guild.iconURL({
-										forceStatic: false,
-									}),
-								);
+							if (logChannel) {
+								const alertEmbed = new EmbedBuilder()
+									.setTitle('🚨 Driver Penalty Alert')
+									.setColor('DarkRed')
+									.setDescription(
+										`Driver <@${discordId}> telah mencapai **${threshold} penalty points**.`,
+									)
+									.addFields(
+										{
+											name: '📊 Total Poin Sekarang',
+											value: `${updatedPoint.totalPoints} points`,
+											inline: true,
+										},
+										{
+											name: '🧾 Job Terakhir',
+											value: `#${jobId}`,
+											inline: true,
+										},
+									)
+									.setTimestamp()
+									.setThumbnail(
+										message.guild.iconURL({
+											forceStatic: false,
+										}),
+									);
 
-							logChannel.send({ embeds: [alertEmbed] });
+								logChannel.send({ embeds: [alertEmbed] });
+							}
 						}
 					}
 				}

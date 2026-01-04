@@ -25,8 +25,7 @@ class DiscordBot extends Client {
 	login_attempts = 0;
 	login_timestamp = 0;
 	statusMessages = [
-		{ name: 'Mulai special contract /startjob', type: 4 },
-		{ name: `Running in version ${version}`, type: 4 },
+		{ name: `Nismara Group`, type: 4 },
 	];
 
 	commands_handler = new CommandsHandler(this);

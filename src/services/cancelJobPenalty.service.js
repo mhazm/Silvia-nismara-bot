@@ -16,7 +16,7 @@ async function applyCancelPenalty({ guildId, userId, jobId, managerId }) {
 		managerId,
 		points: PENALTY_POINTS,
 		type: 'add',
-		reason: `Job abandoned (Start new job before finishing) — Job #${jobId}`,
+		reason: `Job abandoned — Job #${jobId}`,
 	});
 }
 

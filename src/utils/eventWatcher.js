@@ -1,45 +1,76 @@
-const NCEvent = require("../models/ncevent");
-const GuildSettings = require("../models/guildsetting");
-const { EmbedBuilder } = require("discord.js");
+const NCEvent = require('../models/ncevent');
+const GuildSettings = require('../models/guildsetting');
+const NCEventHistory = require('../models/nceventHistory');
+const { EmbedBuilder } = require('discord.js');
 
 module.exports = async function startEventWatcher(client) {
-    console.log("🔄 NC Event Watcher started...");
+	console.log('🔄 NC Event Watcher started...');
 
-    setInterval(async () => {
-        try {
-            const now = new Date();
-            const events = await NCEvent.find({ endAt: { $lte: now } });
+	setInterval(async () => {
+		try {
+			const now = new Date();
 
-            if (events.length === 0) return;
+			// Cari event yang sudah berakhir
+			const events = await NCEvent.find({
+				endAt: { $lte: now },
+			});
 
-            for (const ev of events) {
-                const guild = client.guilds.cache.get(ev.guildId);
-                if (!guild) continue;
+			if (!events.length) return;
 
-                const settings = await GuildSettings.findOne({ guildId: ev.guildId });
-                if (!settings || !settings.eventNotifyChannel) continue;
+			for (const ev of events) {
+				const guild = client.guilds.cache.get(ev.guildId);
+				if (!guild) {
+					await NCEvent.deleteOne({ _id: ev._id });
+					continue;
+				}
 
-                const channel = guild.channels.cache.get(settings.eventNotifyChannel);
-                if (!channel) continue;
+				const settings = await GuildSettings.findOne({
+					guildId: ev.guildId,
+				});
 
-                const embed = new EmbedBuilder()
-                    .setTitle("🔔 NC Boost Event Telah Berakhir!")
-                    .setColor("Red")
-                    .setDescription(
-                        `Event NC Boost dengan multiplier **x${ev.multiplier}** telah resmi berakhir.\n\n` +
-                        `Terimakasih telah berpartisipasi! 🚚💨`
-                    )
-                    .setTimestamp();
+				if (settings?.eventNotifyChannel) {
+					const channel = guild.channels.cache.get(
+						settings.eventNotifyChannel,
+					);
 
-                channel.send({ embeds: [embed] });
+					if (channel) {
+						const embed = new EmbedBuilder()
+							.setTitle('🔔 NC Boost Event Telah Berakhir!')
+							.setColor('Red')
+							.setDescription(
+								`Event **${ev.nameEvent}** dengan multiplier **x${ev.multiplier}** telah resmi berakhir.\n\n` +
+									`Terimakasih telah berpartisipasi! 🚚💨`,
+							)
+							.setTimestamp();
 
-                // hapus event setelah notifikasi
-                await NCEvent.deleteOne({ _id: ev._id });
+						await channel.send({ embeds: [embed] });
+					}
+				}
 
-                console.log(`⚠️ NC Event expired & notified for guild ${ev.guildId}`);
-            }
-        } catch (err) {
-            console.error("❌ Event watcher error:", err);
-        }
-    }, 60_000); // cek tiap 1 menit
+				// 🔹 Tutup history event yang masih terbuka
+				const history = await NCEventHistory.findOne({
+					guildId: ev.guildId,
+					endDate: { $exists: false },
+				}).sort({ startDate: -1 });
+
+				if (history) {
+					history.endDate = ev.endAt;
+					history.durationDays = Math.ceil(
+						(history.endDate - history.startDate) /
+							(1000 * 60 * 60 * 24),
+					);
+					await history.save();
+				}
+
+				// 🔹 Hapus event aktif
+				await NCEvent.deleteOne({ _id: ev._id });
+
+				console.log(
+					`✅ NC Event expired & history closed for guild ${ev.guildId}`,
+				);
+			}
+		} catch (err) {
+			console.error('❌ Event watcher error:', err);
+		}
+	}, 60_000); // cek tiap 1 menit
 };
