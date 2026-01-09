@@ -1,36 +1,40 @@
-const { EmbedBuilder } = require('discord.js');
 const Event = require('../../structure/Event');
-const Point = require('../../models/points');
-const PointHistory = require('../../models/pointhistory');
 const DriverRegistry = require('../../models/driverlink');
 const GuildSettings = require('../../models/guildsetting');
+const JobHistory = require('../../models/jobHistory');
+const {
+	applyCancelPenalty,
+} = require('../../services/cancelJobPenalty.service');
+const {
+	notifyPointResult,
+} = require('../../services/cancelJobNotify.service');
+
+const fetch = global.fetch || require('node-fetch');
 
 module.exports = new Event({
 	event: 'messageCreate',
 	once: false,
 	run: async (__client__, message) => {
 		try {
-			// =========================
-			// VALIDASI DASAR
-			// =========================
+			/* =========================
+			   BASIC VALIDATION
+			========================= */
 			if (!message.guild) return;
 
 			const settings = await GuildSettings.findOne({
 				guildId: message.guild.id,
 			});
-			if (!settings || !settings.truckyWebhookChannel) return;
+			if (!settings?.truckyWebhookChannel) return;
 			if (message.channel.id !== settings.truckyWebhookChannel) return;
-
 			if (!message.webhookId) return;
 			if (!message.embeds?.length) return;
 
 			const embed = message.embeds[0];
+			if (!embed.title?.includes('Job Canceled')) return;
 
-			// =========================
-			// DETEKSI JOB CANCELED
-			// =========================
-			if (!embed.title || !embed.title.includes('Job Canceled')) return;
-
+			/* =========================
+			   PARSE JOB ID
+			========================= */
 			const match = embed.title.match(/#(\d+)/);
 			if (!match) return;
 
@@ -39,106 +43,118 @@ module.exports = new Event({
 
 			console.log(`❌ Job Canceled detected: #${jobId}`);
 
-			// =========================
-			// AMBIL NAMA DRIVER DARI EMBED
-			// (biasanya ada di author / footer / description)
-			// =========================
-			const driverName =
-				embed.author?.name ||
-				embed.footer?.text ||
-				null;
+			/* =========================
+			   FETCH JOB FROM TRUCKY
+			========================= */
+			const res = await fetch(
+				`https://e.truckyapp.com/api/v1/job/${jobId}`,
+				{
+					headers: {
+						'x-access-token': process.env.TRUCKY_API_KEY,
+						Accept: 'application/json',
+						'User-Agent': 'Mozilla/5.0',
+					},
+				},
+			);
 
-			if (!driverName) {
-				console.log('⚠️ Driver name tidak ditemukan di embed.');
+			if (!res.ok) {
+				console.log('❌ Job not found on Trucky API');
 				return;
 			}
 
+			const job = await res.json();
+			const truckyId = job.driver?.id;
+			const truckyName = job.driver?.name;
+
+			if (!truckyId || !truckyName) return;
+
+			/* =========================
+			   MAP DRIVER
+			========================= */
 			const driver = await DriverRegistry.findOne({
 				guildId,
-				truckyName: { $regex: `^${driverName}$`, $options: 'i' },
+				truckyId,
 			});
 
 			if (!driver) {
-				console.log('⚠️ Driver belum ter-register, skip penalty.');
+				console.log('⚠️ Driver not registered, skip penalty');
 				return;
 			}
 
 			const discordId = driver.userId;
 			const PENALTY_POINTS = 5;
 
-			// =========================
-			// UPDATE POINT PENALTY
-			// =========================
-			const prevPointData = await Point.findOne({
+			/* =========================
+			   FIND PREVIOUS ONGOING JOB
+			   (MODEL-AWARE)
+			========================= */
+			const previousJob = await JobHistory.findOne({
 				guildId,
-				userId: discordId,
+				driverId: discordId,
+				truckyId,
+				jobStatus: 'ONGOING',
+				cancelPenaltyApplied: false,
+				jobId: { $ne: jobId },
 			});
 
-			const prevTotal = prevPointData?.totalPoints || 0;
+			if (!previousJob) {
+				console.log(
+					`ℹ️ No ongoing job to cancel for ${truckyName}`,
+				);
+				return;
+			}
 
-			const updatedPoint = await Point.findOneAndUpdate(
-				{ guildId, userId: discordId },
-				{ $inc: { totalPoints: PENALTY_POINTS } },
-				{ upsert: true, new: true },
+			/* =========================
+			   ATOMIC CANCEL UPDATE
+			   (ANTI RACE-CONDITION)
+			========================= */
+			const updatedJob = await JobHistory.findOneAndUpdate(
+				{
+					_id: previousJob._id,
+					cancelPenaltyApplied: false,
+				},
+				{
+					jobStatus: 'CANCELED',
+					completedAt: new Date(),
+					error: 'START_NEW_JOB',
+					cancelPenaltyApplied: true,
+					status: 'completed',
+				},
+				{ new: true },
 			);
 
-			await PointHistory.create({
+			if (!updatedJob) {
+				console.log(
+					'⚠️ Job already processed by another handler',
+				);
+				return;
+			}
+
+			/* =========================
+			   APPLY PENALTY
+			========================= */
+			await applyCancelPenalty({
 				guildId,
 				userId: discordId,
-				managerId: __client__.user.id,
+				jobId: updatedJob.jobId,
+				managerId: client.user.id,
+			});
+
+			await notifyPointResult({
+				client: __client__,
+				guildId,
+				userId: discordId,
+				type: 'penalty',
 				points: PENALTY_POINTS,
-				type: 'add',
-				reason: `Job Canceled — Job #${jobId}`,
+				jobId: updatedJob.jobId,
+				reason: `Cancel Job Penalty: Started new job (#${jobId}) before completing previous job (#${updatedJob.jobId})`,
 			});
 
 			console.log(
-				`⚠️ Penalty applied: +${PENALTY_POINTS} points to ${driverName}`,
+				`⚠️ Penalty applied: +${PENALTY_POINTS} points to ${truckyName}`,
 			);
-
-			// =========================
-			// LOG KE CHANNEL (OPTIONAL)
-			// =========================
-			if (settings.channelLog) {
-				const logChannel = message.guild.channels.cache.get(
-					settings.channelLog,
-				);
-
-				if (logChannel) {
-					const logEmbed = new EmbedBuilder()
-						.setTitle('❌ Job Canceled Penalty')
-						.setColor('DarkRed')
-						.setDescription(
-							`Driver: <@${discordId}>\n` +
-							`Job ID: **#${jobId}**\n\n` +
-							`Penalty Diberikan: **${PENALTY_POINTS} points**\n` +
-							`Total Penalty Saat Ini: **${updatedPoint.totalPoints} points**`,
-						)
-						.setTimestamp()
-						.setThumbnail(
-							message.guild.iconURL({ forceStatic: false }),
-						);
-
-					logChannel.send({ embeds: [logEmbed] });
-				}
-			}
-
-			// =========================
-			// DM KE DRIVER (OPTIONAL)
-			// =========================
-			const userEmbed = new EmbedBuilder()
-				.setTitle('❌ Job Dibatalkan')
-				.setColor('Red')
-				.setDescription(
-					`Job **#${jobId}** terdeteksi **dibatalkan**.\n\n` +
-					`Kamu menerima **${PENALTY_POINTS} penalty points**.\n` +
-					`Total penalty kamu sekarang: **${updatedPoint.totalPoints} points**.`,
-				)
-				.setTimestamp();
-
-			__client__.users.send(discordId, { embeds: [userEmbed] }).catch(() => {});
-
 		} catch (err) {
-			console.error('❌ Job Canceled penalty error:', err);
+			console.error('❌ Job Canceled handler error:', err);
 		}
 	},
 }).toJSON();
