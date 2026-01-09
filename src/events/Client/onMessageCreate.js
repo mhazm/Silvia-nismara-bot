@@ -15,7 +15,6 @@ const CurrencyHistory = require('../../models/currencyHistory');
 const NCEvent = require('../../models/ncevent');
 const Contract = require('../../models/contract');
 const jobHistory = require('../../models/jobHistory');
-const sendSpecialContractEmbed = require('../../utils/sendSpecialContractEmbed');
 
 module.exports = new Event({
 	event: 'messageCreate',
@@ -181,7 +180,7 @@ module.exports = new Event({
 			//  ⭐ UNIVERSAL NC REWARD SYSTEM (CLEAN + MODULAR)
 			// ==========================================================
 
-			const km = Number(job.real_driven_distance_km || 0);
+			const km = Number(job.driven_distance_km || 0);
 
 			// Reward map (agar mudah dikembangkan)
 			let reward = {
@@ -399,7 +398,7 @@ module.exports = new Event({
 				}
 			}
 
-			const distance = job.real_driven_distance_km ?? 0;
+			const distance = job.driven_distance_km ?? 0;
 			const vehicle = job.vehicle_damage ?? 0;
 			const trailer = job.trailers_damage ?? 0;
 			const cargo = job.cargo_damage ?? 0;
@@ -591,7 +590,7 @@ module.exports = new Event({
 					},
 					{
 						name: '🚚 Rute',
-						value: `${job.source_city_name} → ${job.destination_city_name} (${job.real_driven_distance_km} km)`,
+						value: `${job.source_city_name} → ${job.destination_city_name} (${job.driven_distance_km} km)`,
 					},
 					{
 						name: '📦 Kargo',
@@ -1121,7 +1120,7 @@ module.exports = new Event({
 						cargoName: job.cargo_name,
 						cargoMass: job.cargo_mass_t ?? 0,
 
-						distanceKm: job.real_driven_distance_km ?? 0,
+						distanceKm: job.driven_distance_km ?? 0,
 						durationSeconds: job.real_driving_time_seconds ?? 0,
 						revenue: job.revenue ?? 0,
 
