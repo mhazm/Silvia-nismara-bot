@@ -5,6 +5,7 @@ const contractSchema = new mongoose.Schema({
 	companyName: { type: String, required: true },
 	channelId: { type: String }, // optional channel ID for contract announcements
 	imageUrl: { type: String }, // optional image URL for the company logo
+	gameId : { type: String }, // optional game ID (e.g., '1 for ets2', '2 for ats')
 	setBy: { type: String }, // siapa yang set
 	setAt: { type: Date, default: Date.now },
 });

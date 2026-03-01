@@ -4,6 +4,7 @@ const activeJobSchema = new mongoose.Schema({
 	guildId: {type: String },
 	driverId: {type: String },
 	jobId: { type: String, },
+	gameId: { type: String },
 	companyName: String,
 	desinationCompany: String,
 	source: String,

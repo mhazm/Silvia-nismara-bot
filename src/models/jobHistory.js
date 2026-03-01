@@ -6,12 +6,13 @@ const jobHistorySchema = new mongoose.Schema(
 		jobId: { type: String, required: true },
 		driverId: { type: String, required: true },
 		truckyId: { type: String, required: true },
+		gameId: { type: String },
 
 		// 🔐 Distributed Lock
 		status: {
 			type: String,
-			enum: ['processing', 'completed', 'failed', 'idle'],
-			default: 'idle',
+			enum: ['processing', 'completed', 'failed', 'ongoing'],
+			default: 'ongoing',
 			index: true,
 		},
 		lockId: { type: String },
@@ -28,6 +29,7 @@ const jobHistorySchema = new mongoose.Schema(
 		game: String, // ETS2 / ATS
 		gameMode: String, // truckersmp / sp
 		statsType: String,
+		marketType: String, // cargo market / freight market
 
 		// Job info
 		sourceCity: String,
@@ -36,6 +38,7 @@ const jobHistorySchema = new mongoose.Schema(
 		destinationCompany: String,
 		cargoName: String,
 		cargoMass: Number,
+		plannedDistanceKm: Number,
 		distanceKm: Number,
 		durationSeconds: Number,
 		revenue: Number,

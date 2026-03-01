@@ -4,6 +4,7 @@ const specialContractHistorySchema = new mongoose.Schema({
   guildId: { type: String, required: true },
   driverId: { type: String, required: true },  // Discord ID
   jobId: { type: String, required: true },
+  gameId: { type: String, required: true },
 
   // Informasi job
   source: { type: String },

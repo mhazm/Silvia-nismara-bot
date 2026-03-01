@@ -71,6 +71,8 @@ module.exports = new Event({
 			const truckyId = job.driver?.id;
 			if (!truckyId) return;
 
+			const gameId = job.game_id || 'unknown';
+
 			const manajerLogChannel = message.guild.channels.cache.get(
 				settings.channelLog,
 			);
@@ -120,6 +122,7 @@ module.exports = new Event({
 			const existingJob = await JobHistory.findOne({
 				guildId,
 				driverId: discordId,
+				gameId: gameId,
 				jobStatus: 'ONGOING',
 			});
 
@@ -149,7 +152,7 @@ module.exports = new Event({
 						type: 'penalty',
 						points: PENALTY_POINTS,
 						jobId: jobId,
-						reason: `Cancel Job Penalty: Started a new job (#${jobId}) before completing the previous one (#${existingJob.jobId})`,
+						reason: `Pinalti Pembatalan Pekerjaan: Memulai Pekerjaan baru (#${jobId}) sebelum menyelesaikan pekerjaan sebelumnya (#${existingJob.jobId})`,
 					});
 
 					await JobHistory.updateOne(
@@ -163,6 +166,8 @@ module.exports = new Event({
 			const alreadyExists = await JobHistory.findOne({
 				guildId,
 				jobId,
+				gameId: gameId,
+				driverId: discordId,
 			});
 
 			if (alreadyExists) {
@@ -176,16 +181,30 @@ module.exports = new Event({
 				jobId,
 				driverId: discordId,
 				truckyId,
+				gameId: gameId,
 				game: gameName,
+				sourceCity: job.source_city_name,
+				destinationCity: job.destination_city_name,
+				sourceCompany: job.source_company_name,
+				destinationCompany: job.destination_company_name,
+				cargoName: job.cargo_name,
+				cargoMass: job.cargo_mass_t ?? 0,
+				plannedDistanceKm: job.planned_distance_km,
+				marketType: job.market,
 				jobStatus: 'ONGOING',
-				status: 'idle',
+				status: 'ongoing',
 				startedAt: new Date(),
 			});
 
 			// Cek apakah ini adalah special contract
-			const contract = await Contract.findOne({ guildId });
+			const contract = await Contract.findOne({
+				guildId,
+				gameId: gameId,
+			});
+
+			// Cek special contract channel
 			const notifyChannel = message.guild.channels.cache.get(
-				contract.channelId,
+				settings.contractChannel,
 			);
 			if (!notifyChannel) {
 				console.log(
@@ -210,6 +229,7 @@ module.exports = new Event({
 				guildId,
 				driverId: discordId,
 				jobId: jobId,
+				gameId: gameId,
 				companyName: source,
 				destinationCompany: destination,
 				source: job.source_city_name,
@@ -260,6 +280,10 @@ module.exports = new Event({
 						name: '📆 Dimulai Pada',
 						value: `<t:${actualCreatedAt}:F>`,
 						inline: true,
+					},
+					{
+						name: '🌐 World',
+						value: mapGame(gameId),
 					},
 				)
 				.setURL(job.public_url)
@@ -312,6 +336,14 @@ module.exports = new Event({
 						name: '🧾 Kargo',
 						value: `${job.cargo_name} (${job.cargo_mass_t} t)`,
 						inline: true,
+					},
+					{
+						name: '📆 Dimulai Pada',
+						value: `<t:${actualCreatedAt}:F>`,
+					},
+					{
+						name: '🌐 World',
+						value: mapGame(gameId),
 					},
 				)
 				.setTimestamp()

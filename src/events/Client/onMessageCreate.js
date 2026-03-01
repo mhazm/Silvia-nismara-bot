@@ -13,7 +13,6 @@ const SpecialContractHistory = require('../../models/specialContractHistory');
 const Currency = require('../../models/currency');
 const CurrencyHistory = require('../../models/currencyHistory');
 const NCEvent = require('../../models/ncevent');
-const Contract = require('../../models/contract');
 const jobHistory = require('../../models/jobHistory');
 
 module.exports = new Event({
@@ -70,6 +69,8 @@ module.exports = new Event({
 			if (!truckyName) return;
 
 			const gameMode = job.game_mode || 'sp';
+			const gameId = job.game_id || 'unknown';
+			const gameName = mapGame(job.game_id);
 
 			const truckyId = job?.driver?.id;
 			if (!truckyId) return;
@@ -111,14 +112,13 @@ module.exports = new Event({
 
 			const discordId = driver.userId;
 
-			const gameName = mapGame(job.game_id);
-
 			// ==========================================================
 			//  ⭐ FETCH JOB HISTORY
 			// ==========================================================
 			const driverJob = await jobHistory.findOne({
 				guildId,
 				jobId,
+				gameId: gameId,
 			});
 
 			if (!driverJob) {
@@ -150,11 +150,12 @@ module.exports = new Event({
 				{
 					guildId,
 					jobId,
+					gameId: gameId,
 					jobStatus: 'ONGOING',
 					$or: [
 						{ status: 'failed' },
 						{
-							status: 'idle',
+							status: 'ongoing',
 						},
 					],
 				},
@@ -199,6 +200,7 @@ module.exports = new Event({
 				guildId,
 				driverId: discordId,
 				jobId: String(jobId),
+				gameId: gameId,
 				active: true,
 			});
 
@@ -216,6 +218,7 @@ module.exports = new Event({
 					guildId,
 					driverId: discordId,
 					jobId,
+					gameId: gameId,
 					destination: job.destination_company_name || '',
 					source: job.source_company_name || '',
 					distanceKm: km,
@@ -228,7 +231,7 @@ module.exports = new Event({
 				});
 
 				console.log(
-					`⭐ Special Contract Detected → +${reward.special} NC`,
+					`⭐ Special Contract ${gameName} Detected → +${reward.special} NC`,
 				);
 			}
 
@@ -431,6 +434,8 @@ module.exports = new Event({
 				maximumSpeedPenalty +
 				distancePenalty;
 
+			const currentPenaltyPoints = totalPoints + totalPenalty;
+
 			// Build dynamic fields — hanya tampil kalau ada poin
 			const fields = [];
 
@@ -445,6 +450,13 @@ module.exports = new Event({
 				});
 			}
 
+			if (gameName) {
+				fields.push({
+					name: '🌐 Game',
+					value: gameName,
+					inline: true,
+				});
+			}
 			if (reward.hardcore > 0) {
 				fields.push({
 					name: '🔥 Hardcore Bonus Earned',
@@ -513,7 +525,7 @@ module.exports = new Event({
 
 			if (totalPenalty > 0) {
 				description =
-					`Terimakasih telah menyelesaikan job ini!\n` +
+					`Terimakasih telah menyelesaikan job #${jobId} di ${gameName}!\n` +
 					`Pekerjaan kamu dikategorikan sebagai ${
 						isSpecialContract
 							? `Special Contract Job`
@@ -523,21 +535,22 @@ module.exports = new Event({
 					`Total N¢ kamu saat ini adalah **${totalCurrency} N¢**.\n` +
 					`⚠️ Namun, terdapat beberapa pelanggaran selama job berlangsung.\n` +
 					`Dan kamu menerima **${totalPenalty} penalty points** dari job ini.\n` +
-					`Sebagai pengingat, total point penalty kamu saat ini adalah **${totalPoints} points**.`;
+					`Sebagai pengingat, total point penalty kamu saat ini adalah **${currentPenaltyPoints} points**.`;
 			} else {
 				description =
-					`Terimakasih telah menyelesaikan job ini!\n` +
+					`Terimakasih telah menyelesaikan job **#${jobId}** di ${gameName}!\n` +
 					`Pekerjaan kamu dikategorikan sebagai ${
 						isSpecialContract
 							? `Special Contract Job`
 							: `Standard Job`
 					}.\n\n` +
 					`Kamu mendapatkan penghasilan 🪙 **${isSpecialContract ? reward.special : reward.base} N¢**\n` +
+					`Total N¢ kamu saat ini adalah **${totalCurrency} N¢**.\n` +
 					`🎉 Kamu tidak menerima penalty apapun dari job ini!`;
 			}
 
 			const embedUser = new EmbedBuilder()
-				.setTitle(`💼 | Report Your Completed Job - Job #${jobId}`)
+				.setTitle(`💼 | Laporan Pekerjaan Selesai - Job #${jobId}`)
 				.setColor(totalPenalty > 0 ? 'Red' : 'Green')
 				.setDescription(description)
 				.setTimestamp()
@@ -555,9 +568,8 @@ module.exports = new Event({
 			// Send special contract embed if applicable
 			if (isSpecialContract) {
 				// Kirim embed detail job ke channel kontrak
-				const contract = await Contract.findOne({ guildId });
 				const notifyChannel = message.guild.channels.cache.get(
-					contract.channelId,
+					settings.contractChannel,
 				);
 				if (!notifyChannel) {
 					console.log(
@@ -614,6 +626,10 @@ module.exports = new Event({
 					{
 						name: '🗓️ Waktu Selesai',
 						value: `<t:${actualEndAt}:F>`,
+					},
+					{
+						name: '🌐 World',
+						value: gameName,
 					},
 				);
 
@@ -1053,9 +1069,9 @@ module.exports = new Event({
 						updatedPoint.totalPoints >= threshold
 					) {
 						// 🚨 Threshold TERLEWATI
-						if (settings.channelLog) {
+						if (settings.memberWatcherChannel) {
 							const logChannel = message.guild.channels.cache.get(
-								settings.channelLog,
+								settings.memberWatcherChannel,
 							);
 
 							if (logChannel) {
@@ -1095,6 +1111,7 @@ module.exports = new Event({
 
 			const current = await jobHistory.findOne({
 				guildId,
+				gameId: gameId,
 				jobId: String(jobId),
 			});
 
@@ -1104,21 +1121,13 @@ module.exports = new Event({
 			//  🚛 SAVE JOB HISTORY WITH DATA
 			// ==========================================================
 			const result = await jobHistory.updateOne(
-				{ guildId, jobId: String(jobId), lockId },
+				{ guildId, jobId: String(jobId), gameId: gameId, lockId },
 				{
 					$set: {
 						game: mapGame(job.game_id),
 						gameMode,
 						statsType: formatStatsType(job.stats_type),
 						jobStatus: 'COMPLETED',
-
-						sourceCity: job.source_city_name,
-						destinationCity: job.destination_city_name,
-						sourceCompany: job.source_company_name,
-						destinationCompany: job.destination_company_name,
-
-						cargoName: job.cargo_name,
-						cargoMass: job.cargo_mass_t ?? 0,
 
 						distanceKm: job.driven_distance_km ?? 0,
 						durationSeconds: job.real_driving_time_seconds ?? 0,
