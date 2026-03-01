@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const contractHistorysSchema = new mongoose.Schema({
 	guildId: { type: String, required: true },
+	gameId: { type: Number, default : 1},
 	companyName: { type: String, required: true },
 	imageUrl: { type: String },
 	setBy: { type: String },

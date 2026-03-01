@@ -8,6 +8,7 @@ const DiscordBot = require('../../client/DiscordBot');
 const ApplicationCommand = require('../../structure/ApplicationCommand');
 const Contract = require('../../models/contract');
 const ContractHistory = require('../../models/ContractHistorys');
+const GuildSettings = require('../../models/guildsettings');
 
 module.exports = new ApplicationCommand({
 	command: {
@@ -20,6 +21,22 @@ module.exports = new ApplicationCommand({
 				description:
 					'Nama Perusahaan Kontrak (Harus sama dengan source_company_name di Trucky)',
 				type: ApplicationCommandOptionType.String,
+				required: true,
+			},
+			{
+				name: 'game',
+				description: 'Pilih game untuk kontrak ini. 1 = ETS2, 2 = ATS',
+				choices: [
+					{ name: 'Euro Truck Simulator 2', value: 1 },
+					{ name: 'American Truck Simulator', value: 2 },
+				],
+				type: ApplicationCommandOptionType.Integer,
+				required: true,
+			},
+			{
+				name: 'durasi',
+				description: 'Durasi kontrak dalam hari',
+				type: ApplicationCommandOptionType.Integer,
 				required: true,
 			},
 			{
@@ -44,6 +61,8 @@ module.exports = new ApplicationCommand({
 		try {
 			const companyName = interaction.options.getString('name');
 			const companyImage = interaction.options.getString('image');
+			const gameId = interaction.options.getInteger('game');
+			const durationDays = interaction.options.getInteger('durasi');
 			const guildId = interaction.guild.id;
 			const userId = interaction.user.id;
 
@@ -57,8 +76,15 @@ module.exports = new ApplicationCommand({
 				);
 			}
 
+			const endDate = new Date(
+				Date.now() + durationDays * 24 * 60 * 60 * 1000,
+			);
+
 			// 🔹 Tutup kontrak lama di history (jika masih aktif)
-			const lastHistory = await ContractHistory.findOne({ guildId }) // cari kontrak terakhir di guild ini
+			const lastHistory = await ContractHistory.findOne({
+				guildId,
+				gameId: gameId,
+			}) // cari kontrak terakhir di guild ini
 				.sort({ startDate: -1 }); // urutkan dari yang terbaru
 
 			if (lastHistory && !lastHistory.endDate) {
@@ -73,6 +99,7 @@ module.exports = new ApplicationCommand({
 			// 🔹 Simpan kontrak baru ke history
 			await ContractHistory.create({
 				guildId: guildId,
+				gameId: gameId,
 				companyName: companyName,
 				imageUrl: companyImage,
 				setBy: userId,
@@ -80,9 +107,13 @@ module.exports = new ApplicationCommand({
 			});
 
 			// 🔹 Simpan / update kontrak aktif per guild
-			const existing = await Contract.findOne({ guildId: guildId });
+			const existing = await Contract.findOne({
+				guildId: guildId,
+				gameId: gameId,
+			});
 			if (existing) {
 				existing.companyName = companyName;
+				existing.gameId = gameId;
 				existing.imageUrl = companyImage;
 				existing.setBy = userId;
 				existing.createdAt = new Date();
@@ -90,16 +121,32 @@ module.exports = new ApplicationCommand({
 			} else {
 				await Contract.create({
 					guildId: guildId,
+					gameId: gameId,
 					companyName: companyName,
 					imageUrl: companyImage,
 					setBy: userId,
+					endAt: endDate,
 				});
 			}
+
+			const settings = await GuildSettings.findOne({
+				guildId: guildId,
+			});
+
+			if (!settings) {
+				return interaction.editReply(
+					'⚠️ Pengaturan guild tidak ditemukan. Pastikan bot sudah diatur dengan benar.',
+				);
+			}
+
+			const notifyChannel = interaction.guild.channels.cache.get(
+				settings.eventNotifyChannel,
+			);
 
 			// 🔹 Kirim embed konfirmasi
 			const embed = new EmbedBuilder()
 				.setColor('#00AEEF')
-				.setTitle('📦 Special Contract Ditetapkan')
+				.setTitle(`📦 Special Contract Ditetapkan untuk ${mapGame(gameId)}`)
 				.addFields(
 					{
 						name: '🏢 Nama Perusahaan',
@@ -114,6 +161,14 @@ module.exports = new ApplicationCommand({
 					{
 						name: '🕒 Tanggal Mulai',
 						value: `<t:${Math.floor(Date.now() / 1000)}:f>`,
+					},
+					{
+						name: '📅 Tanggal Berakhir',
+						value: `<t:${Math.floor(endDate.getTime() / 1000)}:f>`,
+					},
+					{
+						name: '⏳ Durasi',
+						value: `${durationDays} hari`,
 						inline: true,
 					},
 				)
@@ -123,6 +178,8 @@ module.exports = new ApplicationCommand({
 				.setTimestamp();
 
 			if (companyImage) embed.setImage(companyImage);
+
+			await notifyChannel?.send({ embeds: [embed] });
 
 			return interaction.editReply({
 				content:
@@ -137,3 +194,9 @@ module.exports = new ApplicationCommand({
 		}
 	},
 }).toJSON();
+
+function mapGame(game) {
+	if (game === 1 || game === '1') return 'Euro Truck Simulator 2';
+	if (game === 2 || game === '2') return 'American Truck Simulator';
+	return 'Unknown';
+}
