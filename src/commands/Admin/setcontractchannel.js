@@ -43,7 +43,7 @@ module.exports = new ApplicationCommand({
 			});
 		}
 
-		let contract = await GuildSettings.findOne({ guildId });
+		let contract = await Contract.findOne({ guildId });
 		if (!contract) {
 			contract = new Contract({
 				guildId,
