@@ -88,6 +88,7 @@ class DiscordBot extends Client {
 			);
 			success(
 				'Successfully registered application commands. For specific guild? ' +
+				`This is Silvia version ${version}` +
 					(config.development.enabled ? 'Yes' : 'No'),
 			);
 		} catch (err) {
