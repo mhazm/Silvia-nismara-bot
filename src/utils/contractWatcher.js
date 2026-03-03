@@ -3,7 +3,7 @@ const ContractHistory = require('../models/ContractHistorys');
 const Contract = require('../models/contract');
 const { EmbedBuilder } = require('discord.js');
 
-module.exports = async function startEventWatcher(client) {
+module.exports = async function startContractWatcher(client) {
 	console.log('🔄 Special Contract Watcher started...');
 
 	setInterval(async () => {
@@ -77,3 +77,9 @@ module.exports = async function startEventWatcher(client) {
 		}
 	}, 60_000); // cek tiap 1 menit
 };
+
+function mapGame(game) {
+	if (game === 1 || game === '1') return 'Euro Truck Simulator 2';
+	if (game === 2 || game === '2') return 'American Truck Simulator';
+	return 'Unknown';
+}

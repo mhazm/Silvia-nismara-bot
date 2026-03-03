@@ -48,7 +48,7 @@ class DiscordBot extends Client {
 					{
 						name: 'keep this empty',
 						type: 4,
-						state: 'DiscordJS-V14-Bot-Template v3',
+						state: 'Silvia version ' + version,
 					},
 				],
 			},
