@@ -1,5 +1,6 @@
 const { success } = require('../../utils/Console');
 const Event = require('../../structure/Event');
+const { version } = require('../../../package.json');
 
 module.exports = new Event({
 	event: 'clientReady',
@@ -8,7 +9,9 @@ module.exports = new Event({
 		success(
 			'Logged in as ' +
 				client.user.displayName +
-				', took ' +
+				' (v' +
+				version +
+				'), took ' +
 				(Date.now() - __client__.login_timestamp) / 1000 +
 				's.',
 		);
