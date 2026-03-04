@@ -9,7 +9,7 @@ const Contract = require('../../models/contract');
 
 const CHANNEL_TARGETS = {
 	truckyWebhook: { model: 'GuildSettings', key: 'truckyWebhookChannel' },
-	scChannel: { model: 'Channel', key: 'channelId' },
+	scChannel: { model: 'GuildSettings', key: 'contractChannel' },
 	botLog: { model: 'GuildSettings', key: 'channelLog' },
 	eventNotify: { model: 'GuildSettings', key: 'eventNotifyChannel' },
 	memberWatcher: { model: 'GuildSettings', key: 'memberWatcherChannel' },
