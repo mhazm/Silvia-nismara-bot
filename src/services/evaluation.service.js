@@ -1,5 +1,4 @@
 const JobHistory = require('../models/jobHistory');
-const PointHistory = require('../models/pointhistory');
 const Point = require('../models/points');
 
 async function evaluateDriver({
