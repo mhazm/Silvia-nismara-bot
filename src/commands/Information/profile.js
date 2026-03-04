@@ -1,7 +1,6 @@
 const {
 	ChatInputCommandInteraction,
 	ApplicationCommandOptionType,
-	EmbedBuilder,
 	ActionRowBuilder,
 	StringSelectMenuBuilder,
 } = require('discord.js');
@@ -10,102 +9,15 @@ const DiscordBot = require('../../client/DiscordBot');
 const ApplicationCommand = require('../../structure/ApplicationCommand');
 const GuildSettings = require('../../models/guildsetting');
 const { getProfileData } = require('../../services/profile.service');
-const { buildProfileEmbed } = require('../../utils/profileEmbed');
 const { evaluateDriver } = require('../../services/evaluation.service');
 
-// =====================
-// DROPDOWN BUILDER
-// =====================
-function buildProfileDropdown(userId) {
-	return new ActionRowBuilder().addComponents(
-		new StringSelectMenuBuilder()
-			.setCustomId(`profile_menu_${userId}`)
-			.setPlaceholder('Pilih halaman profile...')
-			.addOptions([
-				{
-					label: 'Profile',
-					description: 'Informasi driver',
-					value: 'profile',
-				},
-				{
-					label: 'Wallet',
-					description: 'Total currency & riwayat',
-					value: 'wallet',
-				},
-				{
-					label: 'Point',
-					description: 'Total penalty & riwayat',
-					value: 'point',
-				},
-			]),
-	);
-}
+const {
+	buildProfileEmbed,
+	buildWalletEmbed,
+	buildPointEmbed,
+	buildRecentJobsEmbed,
+} = require('../../utils/profileEmbed');
 
-// =====================
-// WALLET EMBED
-// =====================
-function buildWalletEmbed({ user, profile }) {
-	const history = profile.walletHistory || [];
-
-	const historyText = history
-		.slice(0, 10)
-		.map(
-			(h) =>
-				`• ${h.type} | ${h.amount}\n<t:${Math.floor(
-					new Date(h.createdAt).getTime() / 1000,
-				)}:R>`,
-		)
-		.join('\n');
-
-	return new EmbedBuilder()
-		.setColor(0x00b894)
-		.setTitle(`💰 Wallet - ${user.username}`)
-		.addFields(
-			{
-				name: 'Total Currency',
-				value: `${profile.wallet || 0}`,
-			},
-			{
-				name: 'Riwayat (10 Terakhir)',
-				value: historyText || 'Belum ada transaksi.',
-			},
-		);
-}
-
-// =====================
-// POINT EMBED
-// =====================
-function buildPointEmbed({ user, profile }) {
-	const history = profile.pointHistory || [];
-
-	const historyText = history
-		.slice(0, 10)
-		.map(
-			(p) =>
-				`• ${p.reason} | ${p.amount} poin\n<t:${Math.floor(
-					new Date(p.createdAt).getTime() / 1000,
-				)}:R>`,
-		)
-		.join('\n');
-
-	return new EmbedBuilder()
-		.setColor(0xe17055)
-		.setTitle(`⚠️ Point - ${user.username}`)
-		.addFields(
-			{
-				name: 'Total Penalty Point',
-				value: `${profile.penaltyPoint || 0}`,
-			},
-			{
-				name: 'Riwayat (10 Terakhir)',
-				value: historyText || 'Belum ada riwayat penalty.',
-			},
-		);
-}
-
-// =====================
-// COMMAND
-// =====================
 module.exports = new ApplicationCommand({
 	command: {
 		name: 'profile',
@@ -114,7 +26,7 @@ module.exports = new ApplicationCommand({
 		options: [
 			{
 				name: 'user',
-				description: 'Siapa yang ingin dicek (khusus manager)',
+				description: 'Cek profil user lain (khusus manager)',
 				type: ApplicationCommandOptionType.User,
 				required: false,
 			},
@@ -125,49 +37,43 @@ module.exports = new ApplicationCommand({
 	},
 
 	/**
-	 *
 	 * @param {DiscordBot} client
 	 * @param {ChatInputCommandInteraction} interaction
 	 */
 	run: async (client, interaction) => {
-		const member = interaction.member;
-		const target = interaction.options.getUser('user') || interaction.user;
-
 		await interaction.deferReply({ ephemeral: true });
 
 		try {
+			const target =
+				interaction.options.getUser('user') || interaction.user;
+
 			const setting = await GuildSettings.findOne({
 				guildId: interaction.guild.id,
 			});
-
 			if (!setting) {
 				return interaction.editReply({
 					content: '⚠️ Pengaturan guild tidak ditemukan.',
 				});
 			}
 
-			// Cek manager role
 			const isManager = setting?.roles?.manager?.some((roleId) =>
 				interaction.member.roles.cache.has(roleId),
 			);
 
-			// User biasa tidak boleh cek orang lain
 			if (target.id !== interaction.user.id && !isManager) {
 				return interaction.editReply({
-					content:
-						'❌ Kamu tidak memiliki izin untuk melihat profile orang lain.',
+					content: '❌ Kamu tidak memiliki izin.',
 				});
 			}
 
-			// Optional evaluation untuk manager
+			let evaluation = null;
 			if (isManager) {
-				await evaluateDriver({
+				evaluation = await evaluateDriver({
 					guildId: interaction.guild.id,
 					userId: target.id,
 				});
 			}
 
-			// 🔥 FIX BUG: gunakan target.id
 			const profileData = await getProfileData(
 				interaction.guild.id,
 				target.id,
@@ -179,74 +85,91 @@ module.exports = new ApplicationCommand({
 				});
 			}
 
-			// Default embed = Profile Page
-			const defaultEmbed = buildProfileEmbed({
+			const selectMenu = new StringSelectMenuBuilder()
+				.setCustomId('profile_menu')
+				.setPlaceholder('Pilih halaman')
+				.addOptions([
+					{
+						label: '🪪 Profile',
+						value: 'profile',
+					},
+					{
+						label: '💳 Wallet',
+						value: 'wallet',
+					},
+					{
+						label: '⚠️ Points',
+						value: 'points',
+					},
+					{
+						label: '🚛 Pekerjaan Terakhir',
+						value: 'recent_jobs',
+					},
+				]);
+
+			const row = new ActionRowBuilder().addComponents(selectMenu);
+
+			let currentEmbed = buildProfileEmbed({
 				user: target,
-				member,
 				profile: profileData,
+				evaluation,
 			});
 
 			const message = await interaction.editReply({
-				embeds: [defaultEmbed],
-				components: [buildProfileDropdown(interaction.user.id)],
+				embeds: [currentEmbed],
+				components: [row],
 			});
 
-			// =====================
-			// DROPDOWN COLLECTOR
-			// =====================
 			const collector = message.createMessageComponentCollector({
-				time: 1000 * 60 * 5,
+				time: 5 * 60 * 1000,
 			});
 
-			collector.on('collect', async (select) => {
-				if (select.user.id !== interaction.user.id) {
-					return select.reply({
-						content: '❌ Ini bukan profile kamu.',
+			collector.on('collect', async (i) => {
+				if (i.user.id !== interaction.user.id)
+					return i.reply({
+						content: '❌ Ini bukan interaksi kamu.',
 						ephemeral: true,
 					});
-				}
 
-				const value = select.values[0];
 				let newEmbed;
 
-				if (value === 'profile') {
-					newEmbed = buildProfileEmbed({
-						user: target,
-						member,
-						profile: profileData,
-					});
+				switch (i.values[0]) {
+					case 'profile':
+						newEmbed = buildProfileEmbed({
+							user: target,
+							profile: profileData,
+							evaluation,
+						});
+						break;
+
+					case 'wallet':
+						newEmbed = buildWalletEmbed({
+							user: target,
+							profile: profileData,
+						});
+						break;
+
+					case 'points':
+						newEmbed = buildPointEmbed({
+							user: target,
+							profile: profileData,
+						});
+						break;
+
+					case 'recent_jobs':
+						newEmbed = buildRecentJobsEmbed({
+							user: target,
+							profile: profileData,
+						});
+						break;
 				}
 
-				if (value === 'wallet') {
-					newEmbed = buildWalletEmbed({
-						user: target,
-						profile: profileData,
-					});
-				}
-
-				if (value === 'point') {
-					newEmbed = buildPointEmbed({
-						user: target,
-						profile: profileData,
-					});
-				}
-
-				await select.update({
-					embeds: [newEmbed],
-					components: [buildProfileDropdown(interaction.user.id)],
-				});
+				await i.update({ embeds: [newEmbed] });
 			});
-
-			collector.on('end', async () => {
-				await interaction.editReply({
-					components: [],
-				});
-			});
-		} catch (error) {
-			console.error('[PROFILE COMMAND ERROR]', error);
-
+		} catch (err) {
+			console.error('[PROFILE ERROR]', err);
 			await interaction.editReply({
-				content: '❌ Terjadi kesalahan saat mengambil data profile.',
+				content: '❌ Terjadi kesalahan.',
 			});
 		}
 	},

@@ -2,7 +2,7 @@ const JobHistory = require('../models/jobHistory');
 const Currency = require('../models/currency');
 const Point = require('../models/points');
 const CurrencyHistory = require('../models/currencyHistory');
-const PointHistory = require('../models/pointHistory');
+const PointHistory = require('../models/pointhistory');
 
 const { getDriverLink } = require('./driverLink.service');
 const { getCompanyMemberByTruckyId } = require('./trucky.service');
@@ -41,13 +41,12 @@ async function getProfileData(guildId, userId) {
 		}),
 	]);
 
-	const recentJobs = await JobHistory.find({
-		guildId,
-		driverId: userId,
-	})
+	const recentJobs = await JobHistory.find({ guildId, driverId: userId })
 		.sort({ createdAt: -1 })
-		.limit(5)
-		.select('jobId status createdAt')
+		.limit(3)
+		.select(
+			'jobId game jobStatus sourceCompany sourceCity destinationCompany destinationCity cargoName cargoMass',
+		)
 		.lean();
 
 	// =========================
@@ -58,7 +57,7 @@ async function getProfileData(guildId, userId) {
 		userId,
 	})
 		.sort({ createdAt: -1 })
-		.limit(10)
+		.limit(6)
 		.lean();
 
 	// =========================
@@ -69,7 +68,7 @@ async function getProfileData(guildId, userId) {
 		userId,
 	})
 		.sort({ createdAt: -1 })
-		.limit(10)
+		.limit(6)
 		.lean();
 
 	// =========================
