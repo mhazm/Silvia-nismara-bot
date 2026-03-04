@@ -445,7 +445,6 @@ module.exports = new Event({
 						gameMode === 'truckersmp'
 							? 'TruckersMP Damage Rule'
 							: 'Standard Damage Rule',
-					inline: true,
 				});
 			}
 
@@ -453,7 +452,6 @@ module.exports = new Event({
 				fields.push({
 					name: '🌐 Game',
 					value: gameName,
-					inline: true,
 				});
 			}
 			if (reward.hardcore > 0) {
