@@ -49,7 +49,7 @@ module.exports = new ApplicationCommand({
 		}
 
 		// Pagination setting
-		const pageSize = 10;
+		const pageSize = 6;
 		let page = 0;
 		const totalPages = Math.max(1, Math.ceil(history.length / pageSize));
 

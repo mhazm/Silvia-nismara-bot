@@ -94,7 +94,7 @@ module.exports = new ApplicationCommand({
 			.lean();
 
 		// Pagination
-		const pageSize = 10;
+		const pageSize = 6;
 		let page = 0;
 		const totalPages = Math.max(
 			1,
