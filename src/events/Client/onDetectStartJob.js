@@ -6,7 +6,6 @@ const {
 const Event = require('../../structure/Event');
 const DriverRegistry = require('../../models/driverlink');
 const GuildSettings = require('../../models/guildsetting');
-const ActiveJob = require('../../models/activejob');
 const JobHistory = require('../../models/jobHistory');
 const Contract = require('../../models/contract');
 const {
@@ -110,6 +109,7 @@ module.exports = new Event({
 
 			const discordId = driver.userId;
 			const gameName = mapGame(job.game_id);
+			const marketType = formatMarketType(job.market);
 
 			if (job.driver.id !== driver.truckyId) {
 				console.log(
@@ -183,6 +183,8 @@ module.exports = new Event({
 				truckyId,
 				gameId: gameId,
 				game: gameName,
+				gameMode: job.game_mode || 'sp',
+				marketType: marketType,
 				sourceCity: job.source_city_name,
 				destinationCity: job.destination_city_name,
 				sourceCompany: job.source_company_name,
@@ -190,7 +192,6 @@ module.exports = new Event({
 				cargoName: job.cargo_name,
 				cargoMass: job.cargo_mass_t ?? 0,
 				plannedDistanceKm: job.planned_distance_km,
-				marketType: job.market,
 				jobStatus: 'ONGOING',
 				status: 'ongoing',
 				startedAt: new Date(),
@@ -225,19 +226,11 @@ module.exports = new Event({
 				);
 			}
 
-			await ActiveJob.create({
-				guildId,
-				driverId: discordId,
-				jobId: jobId,
-				gameId: gameId,
-				companyName: source,
-				destinationCompany: destination,
-				source: job.source_city_name,
-				destination: job.destination_city_name,
-				cargo: job.cargo_name,
-				cargo_mass: job.cargo_mass_t,
-				distance: job.planned_distance_km,
-			});
+			await JobHistory.findOneAndUpdate(
+				{ guildId, jobId, gameId: gameId, driverId: discordId },
+				{ $set: { isSpecialContract: true } },
+				{ new: true },
+			);
 
 			const actualCreatedAt = Math.floor(
 				new Date(job.created_at).getTime() / 1000,
@@ -362,4 +355,13 @@ function mapGame(game) {
 	if (game === 1 || game === '1') return 'Euro Truck Simulator 2';
 	if (game === 2 || game === '2') return 'American Truck Simulator';
 	return 'Unknown';
+}
+
+function formatMarketType(type) {
+	if (!type) return 'Unknown';
+
+	return type
+		.split('_')
+		.map((w) => w.charAt(0).toUpperCase() + w.slice(1)) // ["External", "Market"]
+		.join(' ');
 }

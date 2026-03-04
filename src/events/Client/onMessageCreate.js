@@ -8,7 +8,6 @@ const Point = require('../../models/points');
 const PointHistory = require('../../models/pointhistory');
 const DriverRegistry = require('../../models/driverlink');
 const GuildSettings = require('../../models/guildsetting');
-const ActiveJob = require('../../models/activejob');
 const SpecialContractHistory = require('../../models/specialContractHistory');
 const Currency = require('../../models/currency');
 const CurrencyHistory = require('../../models/currencyHistory');
@@ -68,7 +67,6 @@ module.exports = new Event({
 			const truckyName = job.driver?.name;
 			if (!truckyName) return;
 
-			const gameMode = job.game_mode || 'sp';
 			const gameId = job.game_id || 'unknown';
 			const gameName = mapGame(job.game_id);
 
@@ -150,12 +148,14 @@ module.exports = new Event({
 				{
 					guildId,
 					jobId,
-					gameId: gameId,
+					gameId,
 					jobStatus: 'ONGOING',
 					$or: [
 						{ status: 'failed' },
+						{ status: 'ongoing' },
 						{
-							status: 'ongoing',
+							status: 'processing',
+							lockedAt: { $lt: lockExpiry }, // 🔥 penting
 						},
 					],
 				},
@@ -166,9 +166,7 @@ module.exports = new Event({
 						lockedAt: now,
 					},
 				},
-				{
-					new: true, // 🔥 WAJIB
-				},
+				{ new: true },
 			);
 
 			// ❌ GAGAL LOCK
@@ -196,12 +194,12 @@ module.exports = new Event({
 			//  1️⃣ SPECIAL CONTRACT CHECK
 			// ==========================================================
 
-			const activeSC = await ActiveJob.findOne({
+			const activeSC = await jobHistory.findOne({
 				guildId,
 				driverId: discordId,
 				jobId: String(jobId),
 				gameId: gameId,
-				active: true,
+				isSpecialContract: true,
 			});
 
 			let isSpecialContract = false;
@@ -408,6 +406,7 @@ module.exports = new Event({
 			const jobType = job.stats_type ?? 0;
 
 			// 🚨 PENALTY CALCULATION FUNCTIONS
+			const gameMode = driverJob.gameMode || 'sp'; // default ke singleplayer kalau gak ada
 			const distancePenalty = calcDistancePenalty(distance);
 			const maximumSpeedPenalty = calcSpeedPenalty(jobType);
 
@@ -591,6 +590,10 @@ module.exports = new Event({
 				const fieldPage1 = [];
 				fieldPage1.push(
 					{
+						name: '🌐 World',
+						value: gameName,
+					},
+					{
 						name: '🏢 Asal',
 						value: job.source_company_name,
 						inline: true,
@@ -626,10 +629,6 @@ module.exports = new Event({
 					{
 						name: '🗓️ Waktu Selesai',
 						value: `<t:${actualEndAt}:F>`,
-					},
-					{
-						name: '🌐 World',
-						value: gameName,
 					},
 				);
 
@@ -1121,11 +1120,9 @@ module.exports = new Event({
 			//  🚛 SAVE JOB HISTORY WITH DATA
 			// ==========================================================
 			const result = await jobHistory.updateOne(
-				{ guildId, jobId: String(jobId), gameId: gameId, lockId },
+				{ guildId, jobId: String(jobId), gameId: gameId },
 				{
 					$set: {
-						game: mapGame(job.game_id),
-						gameMode,
 						statsType: formatStatsType(job.stats_type),
 						jobStatus: 'COMPLETED',
 
@@ -1156,7 +1153,6 @@ module.exports = new Event({
 							total: totalPenalty,
 						},
 
-						isSpecialContract,
 						status: 'completed',
 						completedAt: new Date(job.completed_at),
 						updatedAt: new Date(),
@@ -1167,7 +1163,13 @@ module.exports = new Event({
 					},
 				},
 			);
-			console.log('Job history updated:', result.nModified === 1);
+
+			// Debugging logs untuk memastikan update berhasil
+			if (result.matchedCount === 0) {
+				console.error('❌ Final update FAILED - No document matched');
+			} else {
+				console.log('Job history updated:', result.nModified === 1);
+			}
 		} catch (err) {
 			console.error('❌ Auto penalty error:', err);
 		}
@@ -1227,4 +1229,13 @@ function mapGame(game) {
 	if (game === 1 || game === '1') return 'Euro Truck Simulator 2';
 	if (game === 2 || game === '2') return 'American Truck Simulator';
 	return 'Unknown';
+}
+
+function formatMarketType(type) {
+	if (!type) return 'Unknown';
+
+	return type
+		.split('_')
+		.map((w) => w.charAt(0).toUpperCase() + w.slice(1)) // ["External", "Market"]
+		.join(' ');
 }
