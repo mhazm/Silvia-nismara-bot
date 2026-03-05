@@ -1,16 +1,40 @@
 const mongoose = require('mongoose');
 
-const contractHistorysSchema = new mongoose.Schema({
-	guildId: { type: String, required: true },
-	gameId: { type: Number, default : 1},
-	companyName: { type: String, required: true },
-	imageUrl: { type: String },
-	setBy: { type: String },
-	startDate: { type: Date, default: Date.now },
-	endDate: { type: Date },
-	durationDays: { type: Number },
-});
+const contributorSchema = new mongoose.Schema(
+	{
+		driverId: String,
+		jobs: Number,
+		totalNC: Number,
+		totalDistance: Number,
+		totalMass: Number,
+	},
+	{ _id: false }
+);
+
+const contractHistorySchema = new mongoose.Schema(
+	{
+		guildId: { type: String, required: true },
+		gameId: { type: String, required: true },
+
+		contractName: { type: String, required: true },
+		companyName: { type: String, required: true },
+		setBy: String,
+
+		startDate: { type: Date },
+		endDate: { type: Date },
+		closedAt: { type: Date, default: Date.now },
+		durationDays: Number,
+
+		completedContracts: { type: Number, default: 0 },
+		totalNCEarned: { type: Number, default: 0 },
+		totalDistance: { type: Number, default: 0 },
+		totalMass: { type: Number, default: 0 },
+
+		contributors: [contributorSchema],
+	},
+	{ timestamps: true }
+);
 
 module.exports =
-  mongoose.models.ContractHistorys ||
-  mongoose.model("ContractHistorys", contractHistorysSchema);
+  mongoose.models.ContractHistory ||
+  mongoose.model("ContractHistory", contractHistorySchema);

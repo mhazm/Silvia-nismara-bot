@@ -7,7 +7,7 @@ const {
 const DiscordBot = require('../../client/DiscordBot');
 const ApplicationCommand = require('../../structure/ApplicationCommand');
 const Contract = require('../../models/contract');
-const ContractHistory = require('../../models/ContractHistorys');
+const ContractHistory = require('../../models/contractHistorys');
 const GuildSettings = require('../../models/guildsetting');
 
 module.exports = new ApplicationCommand({
@@ -18,6 +18,12 @@ module.exports = new ApplicationCommand({
 		options: [
 			{
 				name: 'name',
+				description: 'Nama Kontrak',
+				type: ApplicationCommandOptionType.String,
+				required: true,
+			},
+			{
+				name: 'company',
 				description:
 					'Nama Perusahaan Kontrak (Harus sama dengan source_company_name di Trucky)',
 				type: ApplicationCommandOptionType.String,
@@ -59,7 +65,8 @@ module.exports = new ApplicationCommand({
 		await interaction.deferReply({ ephemeral: true });
 
 		try {
-			const companyName = interaction.options.getString('name');
+			const contractName = interaction.options.getString('name');
+			const companyName = interaction.options.getString('company');
 			const companyImage = interaction.options.getString('image');
 			const gameId = interaction.options.getInteger('game');
 			const durationDays = interaction.options.getInteger('durasi');
@@ -96,22 +103,13 @@ module.exports = new ApplicationCommand({
 				await lastHistory.save();
 			}
 
-			// 🔹 Simpan kontrak baru ke history
-			await ContractHistory.create({
-				guildId: guildId,
-				gameId: gameId,
-				companyName: companyName,
-				imageUrl: companyImage,
-				setBy: userId,
-				startDate: new Date(),
-			});
-
 			// 🔹 Simpan / update kontrak aktif per guild
 			const existing = await Contract.findOne({
 				guildId: guildId,
 				gameId: gameId,
 			});
 			if (existing) {
+				existing.contractName = contractName;
 				existing.companyName = companyName;
 				existing.gameId = gameId;
 				existing.imageUrl = companyImage;
@@ -123,6 +121,7 @@ module.exports = new ApplicationCommand({
 					guildId: guildId,
 					gameId: gameId,
 					companyName: companyName,
+					contractName: contractName,
 					imageUrl: companyImage,
 					setBy: userId,
 					endAt: endDate,
@@ -146,11 +145,27 @@ module.exports = new ApplicationCommand({
 			// 🔹 Kirim embed konfirmasi
 			const embed = new EmbedBuilder()
 				.setColor('#00AEEF')
-				.setTitle(`📦 Special Contract Ditetapkan untuk ${mapGame(gameId)}`)
+				.setTitle(`📦 Special Contract **${contractName}** Resmi Dimulai!`)
 				.addFields(
 					{
 						name: '🏢 Nama Perusahaan',
 						value: companyName,
+					},
+					{
+						name: '🎮 Game',
+						value: mapGame(gameId),
+					},
+					{
+						name: '🕒 Tanggal Mulai',
+						value: `<t:${Math.floor(Date.now() / 1000)}:F>`,
+					},
+					{
+						name: '📅 Tanggal Berakhir',
+						value: `<t:${Math.floor(endDate.getTime() / 1000)}:F>`,
+					},
+					{
+						name: '⏳ Durasi',
+						value: `${durationDays} hari`,
 						inline: true,
 					},
 					{
@@ -158,22 +173,9 @@ module.exports = new ApplicationCommand({
 						value: `<@${userId}>`,
 						inline: true,
 					},
-					{
-						name: '🕒 Tanggal Mulai',
-						value: `<t:${Math.floor(Date.now() / 1000)}:f>`,
-					},
-					{
-						name: '📅 Tanggal Berakhir',
-						value: `<t:${Math.floor(endDate.getTime() / 1000)}:f>`,
-					},
-					{
-						name: '⏳ Durasi',
-						value: `${durationDays} hari`,
-						inline: true,
-					},
 				)
 				.setFooter({
-					text: 'Gunakan /contractstatus untuk melihat status saat ini',
+					text: 'Nismara Transport by Nismara Group',
 				})
 				.setTimestamp();
 
