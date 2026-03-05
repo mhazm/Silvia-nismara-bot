@@ -203,6 +203,11 @@ module.exports = new Event({
 				gameId: gameId,
 			});
 
+			if (!contract) {
+				console.log('ℹ️ Tidak ada kontrak aktif untuk game ini, skip special contract check.');
+				return;
+			}
+
 			// Cek special contract channel
 			const notifyChannel = message.guild.channels.cache.get(
 				settings.contractChannel,
@@ -346,7 +351,7 @@ module.exports = new Event({
 				.send(discordId, { embeds: [embedUser] })
 				.catch(() => {});
 		} catch (err) {
-			console.error('❌ Auto penalty error:', err);
+			console.error('❌ Detect Start Job error:', err);
 		}
 	},
 }).toJSON();
