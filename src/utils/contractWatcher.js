@@ -1,5 +1,5 @@
 const GuildSettings = require('../models/guildsetting');
-const ContractHistory = require('../models/contractHistorys.js');
+const ContractHistory = require('../models/ContractHistorys');
 const Contract = require('../models/contract');
 const { EmbedBuilder } = require('discord.js');
 
