@@ -75,7 +75,6 @@ module.exports = new ApplicationCommand({
 			if (!target)
 				return interaction.editReply({
 					content: '❌ Tipe channel tidak dikenali.',
-					ephemeral: true,
 				});
 
 			if (target.model === 'GuildSettings') {
@@ -94,7 +93,6 @@ module.exports = new ApplicationCommand({
 
 			return interaction.editReply({
 				content: `✔ **${type}** berhasil diset ke <#${channel.id}>`,
-				ephemeral: true,
 			});
 		} catch (err) {
 			console.error('❌ Gagal menyimpan role:', err);
