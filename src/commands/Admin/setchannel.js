@@ -66,6 +66,7 @@ module.exports = new ApplicationCommand({
 	 * @param {ChatInputCommandInteraction} interaction
 	 */
 	run: async (client, interaction) => {
+		await interaction.deferReply({ ephemeral: true });
 		try {
 			const type = interaction.options.getString('type');
 			const channel = interaction.options.getChannel('channel');
