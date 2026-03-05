@@ -73,7 +73,7 @@ module.exports = new ApplicationCommand({
 
 			const target = CHANNEL_TARGETS[type];
 			if (!target)
-				return interaction.reply({
+				return interaction.editReply({
 					content: '❌ Tipe channel tidak dikenali.',
 					ephemeral: true,
 				});
@@ -92,7 +92,7 @@ module.exports = new ApplicationCommand({
 				);
 			}
 
-			return interaction.reply({
+			return interaction.editReply({
 				content: `✔ **${type}** berhasil diset ke <#${channel.id}>`,
 				ephemeral: true,
 			});
