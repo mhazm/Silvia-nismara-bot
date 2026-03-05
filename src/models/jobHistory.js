@@ -45,6 +45,10 @@ const jobHistorySchema = new mongoose.Schema(
 		startedAt: Date,
 		completedAt: Date,
 
+		// hardcore
+		isHardcore: { type: Boolean, default: false },
+		hardcoreRating : { type: Number, default: 0 },
+
 		// Damage
 		damage: {
 			vehicle: Number,
