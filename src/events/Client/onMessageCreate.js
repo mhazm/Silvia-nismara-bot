@@ -13,6 +13,7 @@ const Currency = require('../../models/currency');
 const CurrencyHistory = require('../../models/currencyHistory');
 const NCEvent = require('../../models/ncevent');
 const jobHistory = require('../../models/jobHistory');
+const Contract = require('../../models/contract');
 
 module.exports = new Event({
 	event: 'messageCreate',
@@ -253,6 +254,10 @@ module.exports = new Event({
 
 			if (isHardcore) {
 				reward.hardcore = Math.round(km * 1);
+				await jobHistory.findOneAndUpdate(
+					{ guildId, jobId, gameId },
+					{ $set: { isHardcore: true, hardcoreRating: job.delivery_rating_details?.rating } },
+				);
 				console.log(`🔥 Hardcore Bonus: +${reward.hardcore}`);
 			}
 
@@ -277,6 +282,8 @@ module.exports = new Event({
 			reward.total = Math.round(
 				reward.base + reward.special + reward.hardcore + reward.event,
 			);
+
+			const rewardTotal = reward.total;
 
 			console.log('--------------------------------------');
 			console.log(`🏦 FINAL NC FOR JOB #${jobId}`);
@@ -1168,6 +1175,71 @@ module.exports = new Event({
 			} else {
 				console.log('Job history updated:', result.nModified === 1);
 			}
+
+			// ==========================================================
+			//  Contract Completion Data Entry (hanya untuk special contract)
+			// ==========================================================
+			if (isSpecialContract === true) {
+				const nc = Number(reward.total) || 0;
+				const distance = job.driven_distance_km ?? 0;
+				const mass = job.cargo_mass_t ?? 0;
+
+				// 1️⃣ Update statistik global
+				await Contract.updateOne(
+					{
+						guildId,
+						gameId,
+					},
+					{
+						$inc: {
+							completedContracts: 1,
+							totalNCEarned: nc,
+							totalDistance: distance,
+							totalMass: mass,
+						},
+					},
+				);
+
+				// 2️⃣ Update contributor (atomic way)
+
+				// Coba increment dulu
+				const contributorUpdate = await Contract.updateOne(
+					{
+						guildId,
+						gameId,
+						'contributors.driverId': driver.userId,
+					},
+					{
+						$inc: {
+							'contributors.$.jobs': 1,
+							'contributors.$.totalNC': nc,
+							'contributors.$.totalDistance': distance,
+							'contributors.$.totalMass': mass,
+						},
+					},
+				);
+
+				// Kalau belum ada contributor, push baru
+				if (contributorUpdate.modifiedCount === 0) {
+					await Contract.updateOne(
+						{
+							guildId,
+							gameId,
+						},
+						{
+							$push: {
+								contributors: {
+									driverId: driver.userId,
+									jobs: 1,
+									totalNC: nc,
+									totalDistance: distance,
+									totalMass: mass,
+								},
+							},
+						},
+					);
+				}
+			}
 		} catch (err) {
 			console.error('❌ Auto penalty error:', err);
 		}
@@ -1227,13 +1299,4 @@ function mapGame(game) {
 	if (game === 1 || game === '1') return 'Euro Truck Simulator 2';
 	if (game === 2 || game === '2') return 'American Truck Simulator';
 	return 'Unknown';
-}
-
-function formatMarketType(type) {
-	if (!type) return 'Unknown';
-
-	return type
-		.split('_')
-		.map((w) => w.charAt(0).toUpperCase() + w.slice(1)) // ["External", "Market"]
-		.join(' ');
 }
