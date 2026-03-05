@@ -1,78 +1,111 @@
 const {
 	ChatInputCommandInteraction,
-	ApplicationCommandOptionType,
-	AttachmentBuilder,
 	EmbedBuilder,
 } = require('discord.js');
-const DiscordBot = require('../../client/DiscordBot');
+
 const ApplicationCommand = require('../../structure/ApplicationCommand');
-const ActiveJob = require('../../models/activejob');
+const JobHistory = require('../../models/jobHistory');
 
 module.exports = new ApplicationCommand({
 	command: {
 		name: 'contractstats',
-		description:
-			'Melihat statistik special contract bulan ini dan tahun ini',
+		description: 'Statistik Special Contract (Bulanan & Tahunan)',
+		type: 1,
 	},
 	options: {
 		allowedRoles: ['driver'],
-		cooldown: 10000,
 	},
+
 	/**
-	 *
-	 * @param {DiscordBot} client
 	 * @param {ChatInputCommandInteraction} interaction
 	 */
 	run: async (client, interaction) => {
 		await interaction.deferReply();
 
 		try {
+			const guildId = interaction.guild.id;
+
 			const now = new Date();
-			const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+			// Awal bulan
+			const startOfMonth = new Date(
+				now.getFullYear(),
+				now.getMonth(),
+				1
+			);
+
+			// Awal tahun
 			const startOfYear = new Date(now.getFullYear(), 0, 1);
 
-			// Statistik bulan ini
-			const monthCount = await ActiveJob.countDocuments({
-				date: { $gte: startOfMonth },
-			});
-			const monthUsers = await ActiveJob.distinct('driverId', {
-				date: { $gte: startOfMonth },
+			// ======================
+			// TOTAL BULAN INI
+			// ======================
+			const monthlyTotal = await JobHistory.countDocuments({
+				guildId,
+				isSpecialContract: true,
+				jobStatus: 'COMPLETED',
+				createdAt: { $gte: startOfMonth },
 			});
 
-			// Statistik tahun ini
-			const yearCount = await ActiveJob.countDocuments({
-				date: { $gte: startOfYear },
+			// ======================
+			// TOTAL TAHUN INI
+			// ======================
+			const yearlyTotal = await JobHistory.countDocuments({
+				guildId,
+				isSpecialContract: true,
+				jobStatus: 'COMPLETED',
+				createdAt: { $gte: startOfYear },
 			});
-			const yearUsers = await ActiveJob.distinct('driverId', {
-				date: { $gte: startOfYear },
+
+			// Optional breakdown per game
+			const monthlyETS2 = await JobHistory.countDocuments({
+				guildId,
+				isSpecialContract: true,
+				jobStatus: 'COMPLETED',
+				gameId: 1,
+				createdAt: { $gte: startOfMonth },
+			});
+
+			const monthlyATS = await JobHistory.countDocuments({
+				guildId,
+				isSpecialContract: true,
+				jobStatus: 'COMPLETED',
+				gameId: 2,
+				createdAt: { $gte: startOfMonth },
 			});
 
 			const embed = new EmbedBuilder()
-				.setColor('#00AEEF')
+				.setColor(0x9b59b6)
 				.setTitle('📊 Statistik Special Contract')
+				.setDescription(
+					'Statistik berdasarkan job dengan status COMPLETED'
+				)
 				.addFields(
 					{
-						name: '🗓️ Bulan Ini',
-						value: `🚛 Total Job: **${monthCount}**\n👥 Driver Unik: **${monthUsers.length}**`,
+						name: '📅 Bulan Ini',
+						value:
+							`Total: **${monthlyTotal}**\n` +
+							`ETS2: ${monthlyETS2}\n` +
+							`ATS: ${monthlyATS}`,
 						inline: true,
 					},
 					{
-						name: '📅 Tahun Ini',
-						value: `🚛 Total Job: **${yearCount}**\n👥 Driver Unik: **${yearUsers.length}**`,
+						name: '📆 Tahun Ini',
+						value: `Total: **${yearlyTotal}**`,
 						inline: true,
-					},
+					}
 				)
 				.setFooter({
-					text: 'Dihitung berdasarkan log special contract',
+					text: 'Nismara Transport',
 				})
 				.setTimestamp();
 
-			return interaction.editReply({ embeds: [embed] });
-		} catch (err) {
-			console.error('❌ Gagal memuat statistik:', err);
-			return interaction.editReply(
-				'⚠️ Terjadi kesalahan saat memuat statistik.',
-			);
+			await interaction.editReply({ embeds: [embed] });
+		} catch (error) {
+			console.error('[CONTRACT STATS ERROR]', error);
+			await interaction.editReply({
+				content: '❌ Gagal mengambil statistik contract.',
+			});
 		}
 	},
 }).toJSON();
