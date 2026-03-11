@@ -61,7 +61,7 @@ module.exports = new ApplicationCommand({
 		}
 
 		// Pagination setup
-		const pageSize = 10;
+		const pageSize = 5;
 		let page = 0;
 		const totalPages = Math.max(1, Math.ceil(history.length / pageSize));
 
