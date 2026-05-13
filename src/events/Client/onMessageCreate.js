@@ -270,9 +270,12 @@ module.exports = new Event({
 			// ==========================================================
 			//  4️⃣ EVENT MULTIPLIER (OTOMATIS SIAP DIPAKAI)
 			// ==========================================================
+			let isActiveEvent = false;
+
 			const activeEvent = await NCEvent.findOne({ guildId });
 
 			if (activeEvent && activeEvent.endAt > new Date()) {
+				isActiveEvent = true;
 				eventMultiplier = activeEvent.multiplier;
 				reward.event = Math.round(km * eventMultiplier);
 				console.log(`🎉 Event NC Boost aktif → x${eventMultiplier}`);
@@ -1247,10 +1250,15 @@ module.exports = new Event({
 				}
 			}
 
-			const xpGained =
-				Math.round(km * 10) +
-				(isHardcore ? 50 : 0) +
-				(isSpecialContract === 'true' ? 30 : 0);
+			const baseXP = km * 0.5;
+			const hardcoreBonus = isHardcore ? km * 0.5 : 0;
+			const specialBonus = isSpecialContract === 'true' ? km * 0.3 : 0;
+			const eventBonus = isActiveEvent === 'true' ? km * 0.2 : 0;
+
+			// Menjumlahkan semua perolehan dan membulatkannya agar tidak ada angka desimal
+			const xpGained = Math.round(
+				baseXP + hardcoreBonus + specialBonus + eventBonus,
+			);
 
 			// 1. Update XP User (tanpa includeResultMetadata)
 			const updatedUser = await Users.findOneAndUpdate(
@@ -1270,7 +1278,9 @@ module.exports = new Event({
 
 			// 2. Ambil data user dari hasil update
 			const user = updatedUser;
-			const newLevel = Math.floor((user.xp || 0) / 5000) + 1; // Fallback ke 0 jika user.xp belum diset
+			const xpMultiplier = 500;
+			const newLevel =
+				Math.floor(Math.sqrt((user.xp || 0) / xpMultiplier)) + 1;
 
 			// 3. Update level jika ada kenaikan
 			if (user.level !== newLevel) {
