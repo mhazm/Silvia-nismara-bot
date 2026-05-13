@@ -182,42 +182,6 @@ module.exports = new Event({
 			// ==========================================================
 
 			const km = Number(job.driven_distance_km || 0);
-			const xpGained = Math.round(km * 10) + (isHardcore ? 50 : 0);
-
-			const updatedUser = await Users.findOneAndUpdate(
-				{
-					$or: [
-						{ discordId: discordId },
-						{ truckyId: Number(truckyId) },
-					],
-				},
-				{ $inc: { xp: xpGained } },
-				{ 
-					returnDocument: 'after',
-					includeResultMetadata: true 
-				}
-			);
-
-			if (!updatedUser) {
-				console.log(`User ${discordId} belum terdaftar di website`);
-				continue;
-			}
-
-			// Ambil data user dari hasil update
-			const user = updatedUser; 
-			const newLevel = Math.floor(user.xp / 5000) + 1;
-
-			// 4. Update level jika ada kenaikan
-			if (user.level !== newLevel) {
-				await Users.updateOne(
-					{ _id: user._id },
-					{ $set: { level: newLevel } }
-				);
-				
-				console.log(`Selamat! ${discordId} naik ke level ${newLevel}`);
-			}
-
-			console.log(`✨ Driver ${truckyName} mendapatkan ${xpGained} XP!`);
 
 			// Reward map (agar mudah dikembangkan)
 			let reward = {
@@ -1282,6 +1246,43 @@ module.exports = new Event({
 					);
 				}
 			}
+
+			const xpGained =
+				Math.round(km * 10) +
+				(isHardcore ? 50 : 0) +
+				(isSpecialContract === 'true' ? 30 : 0);
+
+			// 1. Update XP User (tanpa includeResultMetadata)
+			const updatedUser = await Users.findOneAndUpdate(
+				{
+					$or: [{ discordId: discordId }],
+				},
+				{ $inc: { xp: xpGained } },
+				{
+					new: true, // Opsi standar Mongoose untuk me-return data SETELAH diupdate
+				},
+			);
+
+			if (!updatedUser) {
+				console.log(`User ${discordId} belum terdaftar di website`);
+				return;
+			}
+
+			// 2. Ambil data user dari hasil update
+			const user = updatedUser;
+			const newLevel = Math.floor((user.xp || 0) / 5000) + 1; // Fallback ke 0 jika user.xp belum diset
+
+			// 3. Update level jika ada kenaikan
+			if (user.level !== newLevel) {
+				await Users.updateOne(
+					{ _id: user._id },
+					{ $set: { level: newLevel } },
+				);
+
+				console.log(`Selamat! ${discordId} naik ke level ${newLevel}`);
+			}
+
+			console.log(`✨ Driver ${truckyName} mendapatkan ${xpGained} XP!`);
 		} catch (err) {
 			console.error('❌ Auto penalty error:', err);
 		}
