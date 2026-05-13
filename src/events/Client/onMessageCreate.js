@@ -14,6 +14,7 @@ const CurrencyHistory = require('../../models/currencyHistory');
 const NCEvent = require('../../models/ncevent');
 const jobHistory = require('../../models/jobHistory');
 const Contract = require('../../models/contract');
+const Users = require('../../models/Users');
 
 module.exports = new Event({
 	event: 'messageCreate',
@@ -181,6 +182,42 @@ module.exports = new Event({
 			// ==========================================================
 
 			const km = Number(job.driven_distance_km || 0);
+			const xpGained = Math.round(km * 10) + (isHardcore ? 50 : 0);
+
+			const updatedUser = await Users.findOneAndUpdate(
+				{
+					$or: [
+						{ discordId: discordId },
+						{ truckyId: Number(truckyId) },
+					],
+				},
+				{ $inc: { xp: xpGained } },
+				{ 
+					returnDocument: 'after',
+					includeResultMetadata: true 
+				}
+			);
+
+			if (!updatedUser) {
+				console.log(`User ${discordId} belum terdaftar di website`);
+				continue;
+			}
+
+			// Ambil data user dari hasil update
+			const user = updatedUser; 
+			const newLevel = Math.floor(user.xp / 5000) + 1;
+
+			// 4. Update level jika ada kenaikan
+			if (user.level !== newLevel) {
+				await Users.updateOne(
+					{ _id: user._id },
+					{ $set: { level: newLevel } }
+				);
+				
+				console.log(`Selamat! ${discordId} naik ke level ${newLevel}`);
+			}
+
+			console.log(`✨ Driver ${truckyName} mendapatkan ${xpGained} XP!`);
 
 			// Reward map (agar mudah dikembangkan)
 			let reward = {
@@ -256,7 +293,12 @@ module.exports = new Event({
 				reward.hardcore = Math.round(km * 1);
 				await jobHistory.findOneAndUpdate(
 					{ guildId, jobId, gameId },
-					{ $set: { isHardcore: true, hardcoreRating: job.delivery_rating_details?.rating } },
+					{
+						$set: {
+							isHardcore: true,
+							hardcoreRating: job.delivery_rating_details?.rating,
+						},
+					},
 				);
 				console.log(`🔥 Hardcore Bonus: +${reward.hardcore}`);
 			}
