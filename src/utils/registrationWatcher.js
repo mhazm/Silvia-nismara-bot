@@ -3,6 +3,9 @@ const {
 	EmbedBuilder,
 	ChannelType,
 	PermissionFlagsBits,
+	ActionRowBuilder,
+	ButtonBuilder,
+	ButtonStyle,
 } = require('discord.js');
 
 module.exports = async function registrationWatcher(client) {
@@ -14,14 +17,13 @@ module.exports = async function registrationWatcher(client) {
 		// Hanya proses jika ada data baru (insert)
 		if (change.operationType === 'insert') {
 			const data = change.fullDocument;
-			const guildId = '1298888060108542017';
+			const guildId = '863959415702028318';
 			const guild = client.guilds.cache.get(guildId);
-			// const guild = client.guilds.cache.get(data.guildId);
 			if (!guild) return;
 
 			// ID Kategori Recruitment (Bisa diambil dari guildsettings atau hardcode)
-			const categoryId = '1333622448599334943';
-			const staffRoleId = '1333622587749564619';
+			const categoryId = '1406551465765502996';
+			const staffRoleId = '1406574228794507354';
 
 			try {
 				// 1. Buat Channel Ticket Otomatis
@@ -78,9 +80,18 @@ module.exports = async function registrationWatcher(client) {
 					.setFooter({ text: 'Nismara Recruitment System' })
 					.setTimestamp();
 
+				// Membuat Tombol Close
+				const closeButton = new ButtonBuilder()
+					.setCustomId('close_registration_ticket')
+					.setLabel('🔒 Close Pendaftaran')
+					.setStyle(ButtonStyle.Danger);
+
+				const row = new ActionRowBuilder().addComponents(closeButton);
+
 				await channel.send({
 					content: `Halo <@${data.userId}> & <@&${staffRoleId}>, pendaftaran dari website telah diterima!`,
 					embeds: [embed],
+					components: [row],
 				});
 
 				// 3. Simpan Channel ID ke DB agar staff bisa approve lewat web nantinya
