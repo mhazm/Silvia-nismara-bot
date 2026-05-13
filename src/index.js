@@ -5,6 +5,7 @@ const mongoHandler = require('./client/handler/mongoHandler');
 const startEventWatcher = require('./utils/eventWatcher');
 const startContractWatcher = require('./utils/contractWatcher');
 const startCouponWatcher = require('./utils/couponWatcher');
+const registrationWatcher = require('./utils/registrationWatcher');
 const { start } = require('repl');
 
 fs.writeFileSync('./terminal.log', '', 'utf-8');
@@ -17,6 +18,7 @@ client.connect();
 startEventWatcher(client);
 startContractWatcher(client);
 startCouponWatcher(client);
+registrationWatcher(client);
 
 process.on('unhandledRejection', console.error);
 process.on('uncaughtException', console.error);
