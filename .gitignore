@@ -9,3 +9,4 @@ terminal.log
 src\config.js
 .prettierrc
 .token
+.vs
