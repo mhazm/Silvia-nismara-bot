@@ -13,6 +13,7 @@ module.exports = async function startCouponWatcher(client) {
 			// Cari event yang sudah berakhir
 			const data = await LeaveHistory.find({
 				endDate: { $lte: now },
+				status: 'active',
 			});
 
 			if (!data.length) return;
