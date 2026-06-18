@@ -46,13 +46,13 @@ module.exports = async function startCouponWatcher(client) {
 				const messageEmbed = new EmbedBuilder()
 					.setTitle(`🔔 Pemberitahuan Cuti telah berakhir`)
 					.setDescription(
-						`Cuti Anda untuk periode ${ev.startDate.toLocaleDateString()} hingga ${ev.endDate.toLocaleDateString()} telah berakhir. Kami harap Anda kembali dengan semangat baru! \n\n Apabila Anda memiliki pertanyaan atau membutuhkan bantuan, jangan ragu untuk menghubungi tim HR Nismara Transport.`,
+						`Cuti Anda untuk periode ${ev.startDate.toLocaleDateString('id-ID')} hingga ${ev.endDate.toLocaleDateString('id-ID')} telah berakhir. Kami harap Anda kembali dengan semangat baru! \n\n Apabila Anda memiliki pertanyaan atau membutuhkan bantuan, jangan ragu untuk menghubungi tim HR Nismara Transport.`,
 					)
 					.setColor('Red')
 					.addFields({
 						name: '📊 Detail Cuti',
 						value:
-							`• **Periode Cuti**: ${ev.startDate.toLocaleDateString()} - ${ev.endDate.toLocaleDateString()}\n` +
+							`• **Periode Cuti**: ${ev.startDate.toLocaleDateString('id-ID')} - ${ev.endDate.toLocaleDateString('id-ID')}\n` +
 							`• **Durasi**: ${durationDays} hari\n` +
 							`• **Alasan**: ${ev.reason}`,
 					})
