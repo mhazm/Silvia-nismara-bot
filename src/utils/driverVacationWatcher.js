@@ -57,7 +57,18 @@ module.exports = async function startCouponWatcher(client) {
 					})
 					.setTimestamp();
 
-				client.users.send(userDiscordID, { embeds: [messageEmbed] });
+				if (ev.userId) {
+					try {
+						await client.users.send(ev.userId, {
+							embeds: [messageEmbed],
+						});
+					} catch (err) {
+						console.error(
+							`❌ Gagal mengirim DM ke user ${ev.userId}:`,
+							err,
+						);
+					}
+				}
 
 				console.log(
 					`✅ Cuti untuk user ${ev.userId} telah berakhir & status diperbarui`,
