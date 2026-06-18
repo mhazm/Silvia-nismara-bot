@@ -6,6 +6,7 @@ const startEventWatcher = require('./utils/eventWatcher');
 const startContractWatcher = require('./utils/contractWatcher');
 const startCouponWatcher = require('./utils/couponWatcher');
 const registrationWatcher = require('./utils/registrationWatcher');
+const startDriverVacationWatcher = require('./utils/driverVacationWatcher');
 const { start } = require('repl');
 
 fs.writeFileSync('./terminal.log', '', 'utf-8');
@@ -19,6 +20,7 @@ startEventWatcher(client);
 startContractWatcher(client);
 startCouponWatcher(client);
 registrationWatcher(client);
+startDriverVacationWatcher(client);
 
 process.on('unhandledRejection', console.error);
 process.on('uncaughtException', console.error);
