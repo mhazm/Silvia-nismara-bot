@@ -94,20 +94,6 @@ module.exports = new ApplicationCommand({
 			const embedTitle = isCompleted ? 'Job Completed' : 'Job Started';
 			const embedColor = isCompleted ? '#00FF00' : '#FFA500';
 
-			const checkJob = await JobHistory.findOne({
-				guildId: interaction.guild.id,
-				jobId: jobData.id,
-			});
-
-			const canceledJob = checkJob.jobStatus === 'CANCELED';
-
-			if (canceledJob) {
-				await JobHistory.deleteOne({
-					guildId: interaction.guild.id,
-					jobId: jobData.id,
-				});
-			}
-
 			const jobDb = await JobHistory.findOne({
 				guildId: interaction.guild.id,
 				jobId: jobData.id,
@@ -116,6 +102,39 @@ module.exports = new ApplicationCommand({
 			let startedEmbedSent = false;
 
 			if (!jobDb) {
+				const startedJobEmbed = new EmbedBuilder()
+					.setTitle(`Job Started - #${jobData.id}`)
+					.setColor(embedColor)
+					.addFields(
+						{
+							name: `🗺️ ${jobData.source_city_name} to ${jobData.destination_city_name}`,
+							value: `${jobData.planned_distance_km} (Planned)`,
+							inline: true,
+						},
+						{
+							name: `Cargo`,
+							value: `${jobData.cargo_name}`,
+							inline: true,
+						},
+						{
+							name: `🚚 Truck`,
+							value: `${jobData.vehicle_brand_name} ${jobData.vehicle_model_name}`,
+							inline: true,
+						},
+					)
+					.setTimestamp();
+
+				await trackerChannel.send({ embeds: [startedJobEmbed] });
+				startedEmbedSent = true;
+			}
+
+			const canceledJob = jobDb.jobStatus === 'CANCELED';
+			if (canceledJob) {
+				await JobHistory.deleteOne({
+					guildId: interaction.guild.id,
+					jobId: jobData.id,
+				});
+
 				const startedJobEmbed = new EmbedBuilder()
 					.setTitle(`Job Started - #${jobData.id}`)
 					.setColor(embedColor)
