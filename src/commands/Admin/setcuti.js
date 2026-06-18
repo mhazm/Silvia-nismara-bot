@@ -53,7 +53,7 @@ module.exports = new ApplicationCommand({
 			const guildId = interaction.guild.id;
 			const managerId = interaction.user.id;
 			const driver = interaction.options.getUser('driver');
-			const hari = interaction.options.getInteger('hari');
+			const hari = interaction.options.getInteger('durasi');
 			const alasan = interaction.options.getString('alasan');
 
 			const endDate = new Date(Date.now() + hari * 24 * 60 * 60 * 1000);
