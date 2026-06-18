@@ -34,12 +34,12 @@ module.exports = async function startCouponWatcher(client) {
 				);
 
 				await Users.updateOne(
-					{ truckyId: ev.truckyId },
+					{ discordId: ev.userId },
 					{ isOnLeave: false },
 				);
 
 				const userDiscordID = await Users.findOne({
-					userId: ev.userId,
+					discordId: ev.userId,
 				});
 
 				const messageEmbed = new EmbedBuilder()
