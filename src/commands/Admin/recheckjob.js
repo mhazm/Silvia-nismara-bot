@@ -94,6 +94,20 @@ module.exports = new ApplicationCommand({
 			const embedTitle = isCompleted ? 'Job Completed' : 'Job Started';
 			const embedColor = isCompleted ? '#00FF00' : '#FFA500';
 
+			const checkJob = await JobHistory.findOne({
+				guildId: interaction.guild.id,
+				jobId: jobData.id,
+			});
+
+			const canceledJob = checkJob.jobStatus === 'CANCELED';
+
+			if (canceledJob) {
+				await JobHistory.deleteOne({
+					guildId: interaction.guild.id,
+					jobId: jobData.id,
+				});
+			}
+
 			const jobDb = await JobHistory.findOne({
 				guildId: interaction.guild.id,
 				jobId: jobData.id,
