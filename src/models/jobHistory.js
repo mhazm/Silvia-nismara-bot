@@ -47,7 +47,7 @@ const jobHistorySchema = new mongoose.Schema(
 
 		// hardcore
 		isHardcore: { type: Boolean, default: false },
-		hardcoreRating : { type: Number, default: 0 },
+		hardcoreRating: { type: Number, default: 0 },
 
 		// Damage
 		damage: {
@@ -92,4 +92,6 @@ const jobHistorySchema = new mongoose.Schema(
 // 🔒 Anti duplikasi
 jobHistorySchema.index({ guildId: 1, jobId: 1 }, { unique: true });
 
-module.exports = mongoose.model('JobHistory', jobHistorySchema);
+module.exports =
+	mongoose.models.JobHistory ||
+	mongoose.model('JobHistory', jobHistorySchema);

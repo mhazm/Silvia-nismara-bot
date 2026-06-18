@@ -5,9 +5,7 @@ const JobHistory = require('../../models/jobHistory');
 const {
 	applyCancelPenalty,
 } = require('../../services/cancelJobPenalty.service');
-const {
-	notifyPointResult,
-} = require('../../services/cancelJobNotify.service');
+const { notifyPointResult } = require('../../services/cancelJobNotify.service');
 
 const fetch = global.fetch || require('node-fetch');
 
@@ -26,7 +24,9 @@ module.exports = new Event({
 			});
 			if (!settings?.truckyWebhookChannel) return;
 			if (message.channel.id !== settings.truckyWebhookChannel) return;
-			if (!message.webhookId) return;
+			// Izinkan jika pesan dari webhook ATAU dari bot itu sendiri
+			if (!message.webhookId && message.author.id !== __client__.user.id)
+				return;
 			if (!message.embeds?.length) return;
 
 			const embed = message.embeds[0];
@@ -98,9 +98,7 @@ module.exports = new Event({
 			});
 
 			if (!previousJob) {
-				console.log(
-					`ℹ️ No ongoing job to cancel for ${truckyName}`,
-				);
+				console.log(`ℹ️ No ongoing job to cancel for ${truckyName}`);
 				return;
 			}
 
@@ -124,9 +122,7 @@ module.exports = new Event({
 			);
 
 			if (!updatedJob) {
-				console.log(
-					'⚠️ Job already processed by another handler',
-				);
+				console.log('⚠️ Job already processed by another handler');
 				return;
 			}
 

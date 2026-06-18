@@ -28,7 +28,9 @@ module.exports = new Event({
 			if (!settings || !settings.truckyWebhookChannel) return;
 			if (message.channel.id !== settings.truckyWebhookChannel) return;
 
-			if (!message.webhookId) return;
+			// Izinkan jika pesan dari webhook ATAU dari bot itu sendiri
+			if (!message.webhookId && message.author.id !== __client__.user.id)
+				return;
 			if (!message.embeds?.length) return;
 
 			const embed = message.embeds[0];
@@ -58,7 +60,7 @@ module.exports = new Event({
 			);
 
 			if (!res.ok) {
-				console.log('❌ Job ID tidak valid di API');
+				console.log('❌ API request failed with status:', res.status);
 				return;
 			}
 
@@ -204,7 +206,9 @@ module.exports = new Event({
 			});
 
 			if (!contract) {
-				console.log('ℹ️ Tidak ada kontrak aktif untuk game ini, skip special contract check.');
+				console.log(
+					'ℹ️ Tidak ada kontrak aktif untuk game ini, skip special contract check.',
+				);
 				return;
 			}
 

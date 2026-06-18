@@ -29,7 +29,9 @@ module.exports = new Event({
 			if (!settings || !settings.truckyWebhookChannel) return;
 			if (message.channel.id !== settings.truckyWebhookChannel) return;
 
-			if (!message.webhookId) return;
+			// Izinkan jika pesan dari webhook ATAU dari bot itu sendiri
+			if (!message.webhookId && message.author.id !== __client__.user.id)
+				return;
 			if (!message.embeds?.length) return;
 
 			const embed = message.embeds[0];

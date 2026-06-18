@@ -82,6 +82,8 @@ module.exports = new ApplicationCommand({
 			const jobPlannedDistance = Number(job?.planned_distance_km || 0);
 			const jobDrivenDistance = Number(job?.real_driven_distance_km || 0);
 			const truckyRevenue = Number(job?.revenue || 0);
+			const jobStatus = job?.status || 'N/A';
+			const jobStatsType = formatStatsType(job?.stats_type);
 
 			const discordId = driver?.userId;
 			const currency = discordId
@@ -260,6 +262,8 @@ module.exports = new ApplicationCommand({
 				`👤 Discord: <@${discordId}>\n` +
 				`🚛 Driver: **${job.driver.name}**\n` +
 				`🕹️ Mode: **${gameMode}**\n\n` +
+				`📊 Status Job: **${jobStatus}**\n` +
+				`🕹️ Stats Type: **${jobStatsType}**\n` +
 				(totalPenalty > 0
 					? `⚠️ Job ini menghasilkan **${totalPenalty} penalty points**.\nTotal penalty driver saat ini: **${totalPenaltyNow} points**`
 					: `✅ Job ini **tanpa penalty**.`);
