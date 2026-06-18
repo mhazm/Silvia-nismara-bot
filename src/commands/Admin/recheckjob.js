@@ -128,7 +128,7 @@ module.exports = new ApplicationCommand({
 				startedEmbedSent = true;
 			}
 
-			const canceledJob = jobDb.jobStatus === 'CANCELED';
+			const canceledJob = jobDb ? jobDb.jobStatus === 'CANCELED' : false;
 			if (canceledJob) {
 				await JobHistory.deleteOne({
 					guildId: interaction.guild.id,
