@@ -180,6 +180,42 @@ module.exports = new Event({
 			}
 
 			// ==========================================================
+			// Perhitungan Pengeluaran
+			// =========================================================
+
+			let cost = {
+				rent: 0,
+				service: 0,
+				fuel: 0,
+				total: 0,
+			};
+
+			// Biaya Sewa
+			if (job.rent_cost_total > 0) {
+				cost.rent = Math.round(job.rent_cost_total / 30);
+			}
+
+			// Biaya Service
+			const serviceDetails = JSON.parse(job.damage_cost_details);
+
+			const cargoDamageCost =
+				Math.round(serviceDetails?.cargo_damage / 30) || 0;
+			const vehicleDamageCost =
+				Math.round(serviceDetails?.vehicle_damage / 30) || 0;
+			const trailerDamageCost =
+				Math.round(serviceDetails?.trailers_damage / 30) || 0;
+
+			cost.service = Math.round(
+				cargoDamageCost + vehicleDamageCost + trailerDamageCost,
+			);
+			console.log(
+				`💰 Service Cost: ${cost.service} N¢ (Cargo: ${cargoDamageCost}, Vehicle: ${vehicleDamageCost}, Trailer: ${trailerDamageCost})`,
+			);
+
+			// Perhitungan Total Pengeluaran
+			cost.total = Math.round(cost.rent + cost.service + cost.fuel);
+
+			// ==========================================================
 			//  ⭐ UNIVERSAL NC REWARD SYSTEM (CLEAN + MODULAR)
 			// ==========================================================
 
@@ -294,7 +330,7 @@ module.exports = new Event({
 				reward.base + reward.special + reward.hardcore + reward.event,
 			);
 
-			const rewardTotal = reward.total;
+			const rewardTotal = Math.round(reward.total - cost.total);
 
 			console.log('--------------------------------------');
 			console.log(`🏦 FINAL NC FOR JOB #${jobId}`);
@@ -302,21 +338,35 @@ module.exports = new Event({
 			console.log(`Special  : ${reward.special}`);
 			console.log(`Hardcore : ${reward.hardcore}`);
 			console.log(`Event    : ${reward.event}`);
-			console.log(`TOTAL NC : ${reward.total}`);
+			console.log(`TOTAL EARNED : ${reward.total}`);
+			console.log(`--------------------------------------`);
+			console.log(`Rental   : ${cost.rent}`);
+			console.log(`Service  : ${cost.service}`);
+			console.log(`Fuel     : ${cost.fuel}`);
+			console.log(`TOTAL COST : ${cost.total}`);
+			console.log(`--------------------------------------`);
+			console.log(`TOTAL NC : ${rewardTotal}`);
 			console.log('--------------------------------------');
 
 			// ==========================================================
 			//  6️⃣ SAVE TO DATABASE
 			// ==========================================================
 
-			if (reward.total > 0) {
-				await Currency.findOneAndUpdate(
-					{ guildId, userId: discordId },
-					{ $inc: { totalNC: reward.total } },
-					{ upsert: true },
-				);
+			const updatedCurrency = await Currency.findOneAndUpdate(
+				{ guildId, userId: discordId },
+				{ $inc: { totalNC: rewardTotal } }, // Langsung gunakan hasil bersih (bisa plus / minus)
+				{ upsert: true, new: true },
+			);
 
-				await CurrencyHistory.create({
+			const totalCurrency = updatedCurrency ? updatedCurrency.totalNC : 0;
+
+			const pointDb = await Point.findOne({ guildId, userId: discordId });
+			const totalPoints = pointDb ? pointDb.totalPoints : 0;
+
+			const historyRecords = [];
+
+			if (reward.base > 0 || reward.special > 0) {
+				historyRecords.push({
 					guildId,
 					userId: discordId,
 					amount: isSpecialContract ? reward.special : reward.base,
@@ -328,36 +378,64 @@ module.exports = new Event({
 				});
 			}
 
-			const currency = await Currency.findOne({
-				guildId,
-				userId: discordId,
-			});
-			const totalCurrency = currency.totalNC;
-
-			const pointDb = await Point.findOne({ guildId, userId: discordId });
-			const totalPoints = pointDb ? pointDb.totalPoints : 0;
-
-			// Hardcore history (pisah)
 			if (reward.hardcore > 0) {
-				await CurrencyHistory.create({
+				historyRecords.push({
 					guildId,
 					userId: discordId,
 					amount: reward.hardcore,
 					managerId: __client__.user.id,
 					type: 'earn',
-					reason: 'Hardcore mode bonus',
+					reason: `Hardcore mode bonus - Job #${jobId}`,
 				});
 			}
 
 			if (reward.event > 0) {
-				await CurrencyHistory.create({
+				historyRecords.push({
 					guildId,
 					userId: discordId,
 					amount: reward.event,
 					managerId: __client__.user.id,
 					type: 'earn',
-					reason: 'NC Boost Event bonus',
+					reason: `NC Boost Event bonus - Job #${jobId}`,
 				});
+			}
+
+			if (cost.rent > 0) {
+				historyRecords.push({
+					guildId,
+					userId: discordId,
+					amount: cost.rent,
+					managerId: __client__.user.id,
+					type: 'spend',
+					reason: `Vehicle Rental Cost - Job #${jobId}`,
+				});
+			}
+
+			if (cost.service > 0) {
+				historyRecords.push({
+					guildId,
+					userId: discordId,
+					amount: cost.service,
+					managerId: __client__.user.id,
+					type: 'spend',
+					reason: `Vehicle Service Cost - Job #${jobId}`,
+				});
+			}
+
+			if (cost.fuel > 0) {
+				historyRecords.push({
+					guildId,
+					userId: discordId,
+					amount: cost.fuel,
+					managerId: __client__.user.id,
+					type: 'spend',
+					reason: `Fuel Cost - Job #${jobId}`,
+				});
+			}
+
+			// Masukkan semua riwayat sekaligus jika ada datanya
+			if (historyRecords.length > 0) {
+				await CurrencyHistory.insertMany(historyRecords);
 			}
 
 			const ncField = [];
@@ -393,6 +471,38 @@ module.exports = new Event({
 				});
 			}
 
+			if (cost.rent > 0) {
+				ncField.push({
+					name: '🚗 Vehicle Rental Cost',
+					value: `-${cost.rent} N¢`,
+					inline: true,
+				});
+			}
+
+			if (cost.service > 0) {
+				ncField.push({
+					name: '🔧 Vehicle Service Cost',
+					value: `-${cost.service} N¢`,
+					inline: true,
+				});
+			}
+
+			if (cost.fuel > 0) {
+				ncField.push({
+					name: '⛽ Fuel Cost',
+					value: `-${cost.fuel} N¢`,
+					inline: true,
+				});
+			}
+
+			if (cost.total > 0) {
+				ncField.push({
+					name: '💰 Total Cost',
+					value: `-${cost.total} N¢`,
+					inline: true,
+				});
+			}
+
 			// EMBED REPORT NC
 			if (settings.channelLog) {
 				const logChannel = message.guild.channels.cache.get(
@@ -404,7 +514,7 @@ module.exports = new Event({
 						.setTitle(`🪙 | NC Reward Report - Job #${jobId}`)
 						.setColor('Blue')
 						.setDescription(
-							`Driver: <@${discordId}>\nTotal NC Earned: **${reward.total} N¢**`,
+							`Driver: <@${discordId}>\nTotal NC Earned: **${reward.total} N¢**\nTotal Cost: **${cost.total} N¢**\nFinal NC: **${rewardTotal} N¢**`,
 						)
 						.addFields(ncField)
 						.setTimestamp()
@@ -472,6 +582,14 @@ module.exports = new Event({
 					value: gameName,
 				});
 			}
+			if (reward.base > 0) {
+				fields.push({
+					name: '🪙 Base NC Earned',
+					value: `+${reward.base} N¢`,
+					inline: true,
+				});
+			}
+
 			if (reward.hardcore > 0) {
 				fields.push({
 					name: '🔥 Hardcore Bonus Earned',
@@ -492,6 +610,38 @@ module.exports = new Event({
 				fields.push({
 					name: '🪙 Total NC Earned',
 					value: `+${reward.total} N¢`,
+					inline: true,
+				});
+			}
+
+			if (cost.rent > 0) {
+				fields.push({
+					name: '🚗 Vehicle Rental Cost',
+					value: `-${cost.rent} N¢`,
+					inline: true,
+				});
+			}
+
+			if (cost.service > 0) {
+				fields.push({
+					name: '🔧 Vehicle Service Cost',
+					value: `-${cost.service} N¢`,
+					inline: true,
+				});
+			}
+
+			if (cost.fuel > 0) {
+				fields.push({
+					name: '⛽ Fuel Cost',
+					value: `-${cost.fuel} N¢`,
+					inline: true,
+				});
+			}
+
+			if (cost.total > 0) {
+				fields.push({
+					name: '💰 Total Cost',
+					value: `-${cost.total} N¢`,
 					inline: true,
 				});
 			}
@@ -546,8 +696,8 @@ module.exports = new Event({
 							? `Special Contract Job`
 							: `Standard Job`
 					}.\n\n` +
-					`Kamu mendapatkan penghasilan **${isSpecialContract ? reward.special : reward.base} N¢**\n` +
-					`Total N¢ kamu saat ini adalah **${totalCurrency} N¢**.\n` +
+					`Kamu mendapatkan total penghasilan kotor **${reward.total} N¢**\n` +
+					`Saldo NC kamu sekarang adalah **${totalCurrency} N¢**.\n` +
 					`⚠️ Namun, terdapat beberapa pelanggaran selama job berlangsung.\n` +
 					`Dan kamu menerima **${totalPenalty} penalty points** dari job ini.\n` +
 					`Sebagai pengingat, total point penalty kamu saat ini adalah **${currentPenaltyPoints} points**.`;
@@ -559,8 +709,8 @@ module.exports = new Event({
 							? `Special Contract Job`
 							: `Standard Job`
 					}.\n\n` +
-					`Kamu mendapatkan penghasilan 🪙 **${isSpecialContract ? reward.special : reward.base} N¢**\n` +
-					`Total N¢ kamu saat ini adalah **${totalCurrency} N¢**.\n` +
+					`Kamu mendapatkan total penghasilan kotor 🪙 **${reward.total} N¢**\n` +
+					`Saldo NC kamu sekarang adalah **${totalCurrency} N¢**.\n` +
 					`🎉 Kamu tidak menerima penalty apapun dari job ini!`;
 			}
 
@@ -1132,6 +1282,14 @@ module.exports = new Event({
 
 			console.log('LOCK ID DB:', current?.lockId);
 
+			let vehicleStatus;
+
+			if (job.vehicle == null) {
+				vehicleStatus = 'Rental';
+			} else if (job.vehicle?.id) {
+				vehicleStatus = 'Owned';
+			}
+
 			// ==========================================================
 			//  🚛 SAVE JOB HISTORY WITH DATA
 			// ==========================================================
@@ -1169,6 +1327,7 @@ module.exports = new Event({
 							total: totalPenalty,
 						},
 
+						vehicleStatus: vehicleStatus,
 						status: 'completed',
 						completedAt: new Date(job.completed_at),
 						updatedAt: new Date(),
@@ -1254,10 +1413,10 @@ module.exports = new Event({
 
 			const baseXP = km * 0.5;
 			const hardcoreBonus = isHardcore ? km * 0.5 : 0;
-			const specialBonus = isSpecialContract === 'true' ? km * 0.3 : 0;
-			const eventBonus = isActiveEvent === 'true' ? km * 0.2 : 0;
 
-			// Menjumlahkan semua perolehan dan membulatkannya agar tidak ada angka desimal
+			const specialBonus = isSpecialContract ? km * 0.3 : 0;
+			const eventBonus = isActiveEvent ? km * 0.2 : 0;
+
 			const xpGained = Math.round(
 				baseXP + hardcoreBonus + specialBonus + eventBonus,
 			);

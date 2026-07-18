@@ -191,6 +191,11 @@ module.exports = new Event({
 				destinationCity: job.destination_city_name,
 				sourceCompany: job.source_company_name,
 				destinationCompany: job.destination_company_name,
+				vehicle: {
+					brand: job.vehicle_brand_name || 'Unknown Brand',
+					model: job.vehicle_model_name || 'Unknown Model',
+				},
+				vehicleId: job.vehicle_id || null,
 				cargoName: job.cargo_name,
 				cargoMass: job.cargo_mass_t ?? 0,
 				plannedDistanceKm: job.planned_distance_km,
