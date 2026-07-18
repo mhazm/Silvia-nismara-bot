@@ -339,9 +339,25 @@ module.exports = new Event({
 				// 	settings.roles?.booster &&
 				// 	member.roles.cache.has(settings.roles.booster);
 
+				let bonusBooster = 0;
+
+				if (km > 5000) {
+					bonusBooster = 600;
+				} else if (km > 4000) {
+					bonusBooster = 500;
+				} else if (km > 3000) {
+					bonusBooster = 400;
+				} else if (km > 2000) {
+					bonusBooster = 300;
+				} else if (km > 1000) {
+					bonusBooster = 200;
+				} else if (km > 150) {
+					bonusBooster = 100;
+				}
+
 				if (isBoosting) {
 					// Contoh: Beri bonus 20% dari total kilometer (0.20 NC per Km)
-					reward.booster = Math.round(km * 0.2);
+					reward.booster = Math.round(km * 0.2 + bonusBooster);
 					console.log(
 						`💎 Server Booster Detected → +${reward.booster} NC`,
 					);
