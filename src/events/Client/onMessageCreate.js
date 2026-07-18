@@ -2,6 +2,7 @@ const {
 	EmbedBuilder,
 	ActionRowBuilder,
 	StringSelectMenuBuilder,
+	AttachmentBuilder,
 } = require('discord.js');
 const Event = require('../../structure/Event');
 const Point = require('../../models/points');
@@ -15,6 +16,7 @@ const NCEvent = require('../../models/ncevent');
 const jobHistory = require('../../models/jobHistory');
 const Contract = require('../../models/contract');
 const Users = require('../../models/Users');
+const { buildJobInvoice } = require('../../utils/generateManifest');
 
 module.exports = new Event({
 	event: 'messageCreate',
@@ -563,6 +565,15 @@ module.exports = new Event({
 
 			const currentPenaltyPoints = totalPoints + totalPenalty;
 
+			const penaltyData = {
+				vehicle: vehiclePenalty,
+				trailer: trailerPenalty,
+				cargo: cargoPenalty,
+				speed: maximumSpeedPenalty,
+				distance: distancePenalty,
+				total: totalPenalty,
+			};
+
 			// Build dynamic fields — hanya tampil kalau ada poin
 			const fields = [];
 
@@ -726,8 +737,35 @@ module.exports = new Event({
 				embedUser.addFields(fields);
 			}
 
+			// ==========================================================
+			// 📄 GENERATE & ATTACH PDF MANIFEST
+			// ==========================================================
+			const companyLogoUrl = job.company?.avatar
+				? `https://cdn.truckyapp.com/${job.company.avatar}`
+				: null;
+
+			// Buat buffer PDF secara realtime menggunakan data yang sudah dihitung di atas
+			const pdfBuffer = await buildJobInvoice(
+				job,
+				reward,
+				cost,
+				rewardTotal,
+				totalCurrency,
+				truckyName,
+				companyLogoUrl,
+				penaltyData,
+			);
+
+			// Bungkus buffer menjadi attachment Discord resmi
+			const pdfAttachment = new AttachmentBuilder(pdfBuffer, {
+				name: `Manifest-Job-${jobId}-${job.driver.name}.pdf`,
+			});
+
 			__client__.users
-				.send(discordId, { embeds: [embedUser] })
+				.send(discordId, {
+					embeds: [embedUser],
+					files: [pdfAttachment],
+				})
 				.catch(() => {});
 
 			// Send special contract embed if applicable
