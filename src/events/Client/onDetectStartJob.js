@@ -2,6 +2,7 @@ const {
 	EmbedBuilder,
 	ActionRowBuilder,
 	StringSelectMenuBuilder,
+	AttachmentBuilder,
 } = require('discord.js');
 const Event = require('../../structure/Event');
 const DriverRegistry = require('../../models/driverlink');
@@ -12,6 +13,7 @@ const {
 	applyCancelPenalty,
 } = require('../../services/cancelJobPenalty.service');
 const { notifyPointResult } = require('../../services/cancelJobNotify.service');
+const { buildDeliveryOrder } = require('../../utils/generateDeliveryOrder');
 
 const PENALTY_POINTS = 5;
 
@@ -73,6 +75,16 @@ module.exports = new Event({
 			if (!truckyId) return;
 
 			const gameId = job.game_id || 'unknown';
+
+			// Cek special contract channel
+			const notifyChannel = message.guild.channels.cache.get(
+				settings.contractChannel,
+			);
+			if (!notifyChannel) {
+				console.log(
+					'❌ Channel kontrak tidak ditemukan atau belum diatur.',
+				);
+			}
 
 			const manajerLogChannel = message.guild.channels.cache.get(
 				settings.channelLog,
@@ -153,7 +165,8 @@ module.exports = new Event({
 						userId: discordId,
 						type: 'penalty',
 						points: PENALTY_POINTS,
-						jobId: jobId,
+						// PERBAIKAN 3: Gunakan existingJob.jobId agar pinalti masuk ke ID lama yang dibatalkan
+						jobId: existingJob.jobId,
 						reason: `Pinalti Pembatalan Pekerjaan: Memulai Pekerjaan baru (#${jobId}) sebelum menyelesaikan pekerjaan sebelumnya (#${existingJob.jobId})`,
 					});
 
@@ -192,8 +205,14 @@ module.exports = new Event({
 				sourceCompany: job.source_company_name,
 				destinationCompany: job.destination_company_name,
 				vehicle: {
-					brand: job.vehicle_brand_name || 'Unknown Brand',
-					model: job.vehicle_model_name || 'Unknown Model',
+					brand:
+						job.vehicle_brand_name ||
+						job.vehicle?.model?.brand?.name ||
+						'Rental / Unknown',
+					model:
+						job.vehicle_model_name ||
+						job.vehicle?.vehicle_name ||
+						'Rental Vehicle',
 				},
 				vehicleId: job.vehicle_id || null,
 				cargoName: job.cargo_name,
@@ -204,123 +223,130 @@ module.exports = new Event({
 				startedAt: new Date(),
 			});
 
-			// Cek apakah ini adalah special contract
+			// PERBAIKAN 2: Pindahkan waktu ke luar scope agar aman digunakan oleh Embed User reguler maupun spesial
+			const actualCreatedAt = Math.floor(
+				new Date(job.created_at).getTime() / 1000,
+			);
+
+			// ==========================================================
+			//  ⭐ SPECIAL CONTRACT LOGIC
+			// ==========================================================
 			const contract = await Contract.findOne({
 				guildId,
 				gameId: gameId,
 			});
 
-			if (!contract) {
-				console.log(
-					'ℹ️ Tidak ada kontrak aktif untuk game ini, skip special contract check.',
-				);
-				return;
+			let isSpecialContract = false;
+
+			if (contract) {
+				const source = job.source_company_name || '';
+				const destination = job.destination_company_name || '';
+				const contractName = contract.companyName.toLowerCase();
+
+				if (
+					source.toLowerCase() === contractName ||
+					destination.toLowerCase() === contractName
+				) {
+					isSpecialContract = true;
+					await JobHistory.findOneAndUpdate(
+						{ guildId, jobId, gameId: gameId, driverId: discordId },
+						{ $set: { isSpecialContract: true } },
+						{ new: true },
+					);
+
+					const embedReport = new EmbedBuilder()
+						.setTitle(`🚛 Special Contract Started! - Job ${jobId}`)
+						.setColor('Yellow')
+						.setAuthor({
+							name: job.driver.name,
+							iconURL: job.driver.avatar_url,
+							url: job.driver.public_url,
+						})
+						.addFields(
+							{
+								name: '🚛 Driver',
+								value: `<@${discordId}>`,
+								inline: true,
+							},
+							{
+								name: '🏢 Perusahaan Awal',
+								value: job.source_company_name,
+								inline: true,
+							},
+							{
+								name: '🏭 Perusahaan Tujuan',
+								value: job.destination_company_name,
+								inline: true,
+							},
+							{
+								name: '🗺️ Rute',
+								value: `${job.source_city_name} → ${job.destination_city_name} (${job.planned_distance_km} Km)`,
+							},
+							{
+								name: '🧾 Kargo',
+								value: `${job.cargo_name} (${job.cargo_mass_t} t)`,
+								inline: true,
+							},
+							{
+								name: '📆 Dimulai Pada',
+								value: `<t:${actualCreatedAt}:F>`,
+								inline: true,
+							},
+							{ name: '🌐 World', value: mapGame(gameId) },
+						)
+						.setURL(job.public_url)
+						.setThumbnail(job.driver.avatar_url)
+						.setTimestamp();
+
+					// Menggunakan Optional Chaining yang lebih aman untuk proteksi truk rental (null crash)
+					const footerBrand =
+						job.vehicle_brand_name ||
+						job.vehicle?.model?.brand?.name ||
+						'Rental Vehicle';
+					const footerModel =
+						job.vehicle_model_name ||
+						job.vehicle?.vehicle_name ||
+						'Quick Job';
+					const footerIcon =
+						job.vehicle?.model?.brand?.logo_url ||
+						'https://i.imgur.com/FljyDVl.png';
+
+					embedReport.setFooter({
+						text: `${footerBrand} - ${footerModel}`,
+						iconURL: footerIcon,
+					});
+
+					if (notifyChannel) {
+						await notifyChannel.send({ embeds: [embedReport] });
+					}
+				}
 			}
 
-			// Cek special contract channel
-			const notifyChannel = message.guild.channels.cache.get(
-				settings.contractChannel,
+			// Ambil URL logo jika ada (kalau tidak ada, parameter akan diabaikan)
+			const companyLogoUrl = job.company?.avatar
+				? `https://cdn.truckyapp.com/${job.company.avatar}`
+				: null;
+
+			// Generate Buffer Surat Jalan
+			const pdfBuffer = await buildDeliveryOrder(
+				job,
+				truckyName,
+				companyLogoUrl,
 			);
-			if (!notifyChannel) {
-				console.log(
-					'❌ Channel kontrak tidak ditemukan atau belum diatur.',
-				);
-			}
 
-			const source = job.source_company_name || '';
-			const destination = job.destination_company_name || '';
-			const contractName = contract.companyName.toLowerCase();
-
-			if (
-				source.toLowerCase() !== contractName &&
-				destination.toLowerCase() !== contractName
-			) {
-				return console.log(
-					`❌ Job ini tidak berasal **dari** atau **menuju ke** perusahaan kontrak (**${contract.companyName}**).`,
-				);
-			}
-
-			await JobHistory.findOneAndUpdate(
-				{ guildId, jobId, gameId: gameId, driverId: discordId },
-				{ $set: { isSpecialContract: true } },
-				{ new: true },
-			);
-
-			const actualCreatedAt = Math.floor(
-				new Date(job.created_at).getTime() / 1000,
-			);
-
-			const embedReport = new EmbedBuilder()
-				.setTitle(`🚛 Special Contract Started! - Job ${jobId}`)
-				.setColor('Yellow')
-				.setAuthor({
-					name: job.driver.name,
-					iconURL: job.driver.avatar_url,
-					url: job.driver.public_url,
-				})
-				.addFields(
-					{
-						name: '🚛 Driver',
-						value: `<@${discordId}>`,
-						inline: true,
-					},
-					{
-						name: '🏢 Perusahaan Awal',
-						value: job.source_company_name,
-						inline: true,
-					},
-					{
-						name: '🏭 Perusahaan Tujuan',
-						value: job.destination_company_name,
-						inline: true,
-					},
-					{
-						name: '🗺️ Rute',
-						value: `${job.source_city_name} → ${job.destination_city_name} (${job.planned_distance_km} Km)`,
-					},
-					{
-						name: '🧾 Kargo',
-						value: `${job.cargo_name} (${job.cargo_mass_t} t)`,
-						inline: true,
-					},
-					{
-						name: '📆 Dimulai Pada',
-						value: `<t:${actualCreatedAt}:F>`,
-						inline: true,
-					},
-					{
-						name: '🌐 World',
-						value: mapGame(gameId),
-					},
-				)
-				.setURL(job.public_url)
-				.setThumbnail(job.driver.avatar_url)
-				.setTimestamp();
-
-			// 🧩 Cek apakah job.vehicle ada
-			if (job.vehicle) {
-				embedReport.setFooter({
-					text: `${job.vehicle_brand_name || job.vehicle.model?.brand?.name || 'Unknown Brand'} - ${job.vehicle.vehicle_name || 'Unknown Vehicle'}`,
-					iconURL:
-						job.vehicle.model?.brand?.logo_url ||
-						'https://i.imgur.com/FljyDVl.png',
-				});
-			} else {
-				// fallback kalau rental / vehicle null
-				embedReport.setFooter({
-					text: `${job.vehicle_brand_name || 'Rental Vehicle'} - ${job.vehicle_model_name || 'No Vehicle Data'}`,
-					iconURL: 'https://i.imgur.com/FljyDVl.png',
-				});
-			}
-			if (notifyChannel)
-				await notifyChannel.send({ embeds: [embedReport] });
+			// Siapkan attachment Discord
+			const doAttachment = new AttachmentBuilder(pdfBuffer, {
+				name: `Delivery-Order-${jobId}-${truckyName}.pdf`,
+			});
 
 			// Send embed to User
 			const embedUser = new EmbedBuilder()
-				.setTitle(`🚛 Started Job - Job #${jobId}`)
+				.setTitle(
+					`🚛 ${isSpecialContract ? 'Special Contract' : 'Regular'} Job Started! - Job #${jobId}`,
+				)
 				.setColor('Green')
 				.setDescription(
-					`Kami mencatat bahwa Anda telah memulai job kontrak spesial.\n` +
+					`Kami mencatat bahwa Anda telah memulai job ${isSpecialContract ? 'kontrak spesial' : 'reguler'}.\n` +
 						`Pastikan untuk menyelesaikan job ini untuk mendapatkan reward dan menjaga reputasi Anda!` +
 						`\n\n**Detail Job:**`,
 				)
@@ -357,7 +383,7 @@ module.exports = new Event({
 				.setThumbnail(message.guild.iconURL({ forceStatic: false }));
 
 			__client__.users
-				.send(discordId, { embeds: [embedUser] })
+				.send(discordId, { embeds: [embedUser], files: [doAttachment] })
 				.catch(() => {});
 		} catch (err) {
 			console.error('❌ Detect Start Job error:', err);
