@@ -229,6 +229,7 @@ module.exports = new Event({
 				special: 0,
 				hardcore: 0,
 				event: 0,
+				booster: 0,
 				total: 0,
 			};
 
@@ -324,12 +325,44 @@ module.exports = new Event({
 			}
 
 			// ==========================================================
+			//  💎 BOOSTER NC BONUS (OTOMATIS)
+			// ==========================================================
+			try {
+				// Ambil data member langsung dari server
+				const member = await message.guild.members.fetch(discordId);
+
+				// 💡 Opsi 1: Menggunakan deteksi otomatis dari Discord (Paling Aman & Direkomendasikan)
+				const isBoosting = member.premiumSinceTimestamp !== null;
+
+				// 💡 Opsi 2: Jika kamu tetap ingin menggunakan Role ID dari Settings
+				// const isBoosting =
+				// 	settings.roles?.booster &&
+				// 	member.roles.cache.has(settings.roles.booster);
+
+				if (isBoosting) {
+					// Contoh: Beri bonus 20% dari total kilometer (0.20 NC per Km)
+					reward.booster = Math.round(km * 0.2);
+					console.log(
+						`💎 Server Booster Detected → +${reward.booster} NC`,
+					);
+				}
+			} catch (error) {
+				console.log(
+					`⚠️ Gagal mengecek status booster untuk user ${discordId}`,
+				);
+			}
+
+			// ==========================================================
 			//  5️⃣ TOTAL NC
 			// ==========================================================
 
 			// TOTAL FINAL NC
 			reward.total = Math.round(
-				reward.base + reward.special + reward.hardcore + reward.event,
+				reward.base +
+					reward.special +
+					reward.hardcore +
+					reward.event +
+					reward.booster,
 			);
 
 			const rewardTotal = Math.round(reward.total - cost.total);
@@ -340,6 +373,7 @@ module.exports = new Event({
 			console.log(`Special  : ${reward.special}`);
 			console.log(`Hardcore : ${reward.hardcore}`);
 			console.log(`Event    : ${reward.event}`);
+			console.log(`Booster  : ${reward.booster}`);
 			console.log(`TOTAL EARNED : ${reward.total}`);
 			console.log(`--------------------------------------`);
 			console.log(`Rental   : ${cost.rent}`);
@@ -399,6 +433,17 @@ module.exports = new Event({
 					managerId: __client__.user.id,
 					type: 'earn',
 					reason: `NC Boost Event bonus - Job #${jobId}`,
+				});
+			}
+
+			if (reward.booster > 0) {
+				historyRecords.push({
+					guildId,
+					userId: discordId,
+					amount: reward.booster,
+					managerId: __client__.user.id,
+					type: 'earn',
+					reason: `Server Booster bonus - Job #${jobId}`,
 				});
 			}
 
@@ -469,6 +514,14 @@ module.exports = new Event({
 				ncField.push({
 					name: '🎉 Event NC Boost Earned',
 					value: `+${reward.event} N¢`,
+					inline: true,
+				});
+			}
+
+			if (reward.booster > 0) {
+				ncField.push({
+					name: '💎 Server Booster Bonus Earned',
+					value: `+${reward.booster} N¢`,
 					inline: true,
 				});
 			}
@@ -613,6 +666,14 @@ module.exports = new Event({
 				fields.push({
 					name: '🎉 Event N¢ Boost Earned',
 					value: `+${reward.event} N¢`,
+					inline: true,
+				});
+			}
+
+			if (reward.booster > 0) {
+				fields.push({
+					name: '💎 Server Booster Bonus Earned',
+					value: `+${reward.booster} N¢`,
 					inline: true,
 				});
 			}
@@ -1353,7 +1414,15 @@ module.exports = new Event({
 							special: reward.special,
 							hardcore: reward.hardcore,
 							event: reward.event,
+							booster: reward.booster,
 							total: reward.total,
+						},
+
+						ncCost: {
+							rent: cost.rent,
+							service: cost.service,
+							fuel: cost.fuel,
+							total: cost.total,
 						},
 
 						penalty: {

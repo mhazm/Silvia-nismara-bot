@@ -106,7 +106,7 @@ async function buildJobInvoice(
 			.font('GoogleSans')
 			.fontSize(8)
 			.text(
-				`Registration No. TRUCKY-35643 | ${mapGameName(job.game_id)}`,
+				`Registration No. TRUCKY-35643 | ${job.game?.name || mapGameName(job.game_id)}`,
 				textOffsetX,
 				startY + 45,
 			);
@@ -445,9 +445,15 @@ async function buildJobInvoice(
 		let incY = startY + 40;
 		doc.fillColor(textBlack).font('GoogleSans').fontSize(9);
 
-		doc.text(`Base Reward`, 55, incY);
-		doc.text(`${reward.base} N¢`, 225, incY, { width: 55, align: 'right' });
-		incY += 15;
+		if (reward.base > 0) {
+			doc.text(`Base Reward`, 55, incY);
+			doc.text(`${reward.base} N¢`, 225, incY, {
+				width: 55,
+				align: 'right',
+			});
+			incY += 15;
+		}
+
 		if (reward.special > 0) {
 			doc.text(`Special Contract`, 55, incY);
 			doc.text(`${reward.special} N¢`, 225, incY, {
@@ -467,6 +473,13 @@ async function buildJobInvoice(
 		if (reward.event > 0) {
 			doc.text(`Event Boost`, 55, incY);
 			doc.text(`${reward.event} N¢`, 225, incY, {
+				width: 55,
+				align: 'right',
+			});
+		}
+		if (reward.booster > 0) {
+			doc.text(`Server Booster`, 55, incY);
+			doc.text(`${reward.booster} N¢`, 225, incY, {
 				width: 55,
 				align: 'right',
 			});

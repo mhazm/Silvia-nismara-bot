@@ -23,7 +23,8 @@ module.exports = new ApplicationCommand({
 					{ name: 'Manager', value: 'manager' },
 					{ name: 'Moderator', value: 'moderator' },
 					{ name: 'Driver', value: 'driver' },
-					{ name: 'Magang', value: 'magang'},
+					{ name: 'Magang', value: 'magang' },
+					{ name: 'Booster', value: 'booster' },
 				],
 			},
 			{

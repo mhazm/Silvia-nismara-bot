@@ -76,6 +76,14 @@ const jobHistorySchema = new mongoose.Schema(
 			special: Number,
 			hardcore: Number,
 			event: Number,
+			booster: Number,
+			total: Number,
+		},
+
+		ncCost: {
+			rent: Number,
+			service: Number,
+			fuel: Number,
 			total: Number,
 		},
 

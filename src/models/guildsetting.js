@@ -17,11 +17,12 @@ const guildSettingsSchema = new mongoose.Schema(
 			moderator: [String],
 			driver: [String],
 			magang: [String],
+			booster: [String],
 		},
 	},
 	{ timestamps: true },
 );
 
 module.exports =
-  mongoose.models.GuildSettings ||
-  mongoose.model("GuildSettings", guildSettingsSchema);
+	mongoose.models.GuildSettings ||
+	mongoose.model('GuildSettings', guildSettingsSchema);
