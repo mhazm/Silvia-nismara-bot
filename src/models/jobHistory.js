@@ -45,6 +45,20 @@ const jobHistorySchema = new mongoose.Schema(
 		startedAt: Date,
 		completedAt: Date,
 
+		// vehicle info
+		vehicle: {
+			brand: String,
+			model: String,
+		},
+
+		vehicleStatus: {
+			type: String,
+			enum: ['Owned', 'Rental', 'Company'],
+		},
+
+		vehicleId: { type: String, default: null },
+		vehicleRentCost: { type: Number, default: 0 },
+
 		// hardcore
 		isHardcore: { type: Boolean, default: false },
 		hardcoreRating: { type: Number, default: 0 },
