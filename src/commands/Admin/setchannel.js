@@ -13,6 +13,7 @@ const CHANNEL_TARGETS = {
 	botLog: { model: 'GuildSettings', key: 'channelLog' },
 	eventNotify: { model: 'GuildSettings', key: 'eventNotifyChannel' },
 	memberWatcher: { model: 'GuildSettings', key: 'memberWatcherChannel' },
+	flightLog: { model: 'GuildSettings', key: 'pilotFlightLogChannel' },
 };
 
 module.exports = new ApplicationCommand({
@@ -46,6 +47,10 @@ module.exports = new ApplicationCommand({
 					{
 						name: 'Member Watcher Channel',
 						value: 'memberWatcher',
+					},
+					{
+						name: 'Flight Log Channel',
+						value: 'flightLog',
 					},
 				],
 			},
