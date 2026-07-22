@@ -42,8 +42,7 @@ module.exports = new ApplicationCommand({
 		try {
 			const guildId = interaction.guild.id;
 			const userId = interaction.user.id;
-			const jumlahPoin =
-				interaction.options.getInteger('jumlah_poin');
+			const jumlahPoin = interaction.options.getInteger('jumlah_poin');
 
 			const member = interaction.member;
 			const displayName = member.displayName;
@@ -54,13 +53,50 @@ module.exports = new ApplicationCommand({
 			const settings = await GuildSettings.findOne({ guildId });
 			if (!settings) {
 				return interaction.reply({
-					content:
-						'⚠️ Guild belum memiliki konfigurasi settings.',
+					content: '⚠️ Guild belum memiliki konfigurasi settings.',
 					ephemeral: true,
 				});
 			}
 
 			const costPerPoint = settings.pointPrice || 3000;
+
+			let discount = {
+				booster: 0,
+				premium: 0,
+				total: 0,
+			};
+
+			// =========================
+			// Booster Discount
+			// =========================
+
+			try {
+				// Gunakan interaction.guild, bukan message.guild
+				const member = await interaction.guild.members.fetch(userId);
+
+				// Deteksi otomatis status booster dari Discord
+				const isBoosting = member.premiumSinceTimestamp !== null;
+
+				if (isBoosting) {
+					// Diskon sebesar 500 NC
+					discount.booster = 500;
+					console.log(
+						`💎 Server Booster Detected → Diskon booster -${discount.booster} NC`,
+					);
+				}
+			} catch (error) {
+				console.log(
+					`⚠️ Gagal mengecek status booster untuk user ${userId}:`,
+					error,
+				);
+			}
+
+			discount.total = Math.round(discount.booster + discount.premium);
+
+			// =========================
+			// Kalkukasi Harga Total
+
+			const pointPrice = Math.round(costPerPoint - discount.total);
 
 			// =========================
 			// 2️⃣ Ambil data penalty
@@ -70,8 +106,7 @@ module.exports = new ApplicationCommand({
 
 			if (totalPenalty <= 0) {
 				return interaction.reply({
-					content:
-						'❌ Kamu tidak memiliki penalty untuk ditebus.',
+					content: '❌ Kamu tidak memiliki penalty untuk ditebus.',
 					ephemeral: true,
 				});
 			}
@@ -91,7 +126,7 @@ module.exports = new ApplicationCommand({
 			const currency = await Currency.findOne({ guildId, userId });
 			const totalNC = currency?.totalNC || 0;
 
-			const totalCost = jumlahPoin * costPerPoint;
+			const totalCost = jumlahPoin * pointPrice;
 
 			if (totalNC < totalCost) {
 				return interaction.reply({
@@ -120,8 +155,9 @@ module.exports = new ApplicationCommand({
 			await interaction.reply({
 				content:
 					`⚠️ **Konfirmasi Tebus Penalty**\n\n` +
-					`Penalty ditebus : **${jumlahPoin} point**\n` +
-					`Biaya           : **${totalCost} N¢**\n\n` +
+					`Penalty ditebus  : **${jumlahPoin} point**\n` +
+					`Harga per 1 Poin : **${pointPrice} N¢**\n` +
+					`Biaya            : **${totalCost} N¢**\n\n` +
 					`Apakah kamu yakin?`,
 				components: [row],
 				ephemeral: true,
@@ -132,16 +168,14 @@ module.exports = new ApplicationCommand({
 			// =========================
 			// 5️⃣ Collector Button
 			// =========================
-			const collector =
-				message.createMessageComponentCollector({
-					time: 20000,
-				});
+			const collector = message.createMessageComponentCollector({
+				time: 20000,
+			});
 
 			collector.on('collect', async (i) => {
 				if (i.user.id !== userId) {
 					return i.reply({
-						content:
-							'❌ Tombol ini bukan untuk kamu.',
+						content: '❌ Tombol ini bukan untuk kamu.',
 						ephemeral: true,
 					});
 				}
@@ -153,8 +187,7 @@ module.exports = new ApplicationCommand({
 				// =========================
 				if (i.customId === 'cancel_tebus') {
 					return i.update({
-						content:
-							'❌ Tebus penalty telah dibatalkan.',
+						content: '❌ Tebus penalty telah dibatalkan.',
 						components: [],
 					});
 				}
@@ -187,12 +220,11 @@ module.exports = new ApplicationCommand({
 				// =========================
 				// 7️⃣ UPDATE DATABASE
 				// =========================
-				const updatedPoint =
-					await Point.findOneAndUpdate(
-						{ guildId, userId },
-						{ $inc: { totalPoints: -jumlahPoin } },
-						{ new: true },
-					);
+				const updatedPoint = await Point.findOneAndUpdate(
+					{ guildId, userId },
+					{ $inc: { totalPoints: -jumlahPoin } },
+					{ new: true },
+				);
 
 				await Currency.findOneAndUpdate(
 					{ guildId, userId },
@@ -225,16 +257,13 @@ module.exports = new ApplicationCommand({
 				// 9️⃣ LOG KE CHANNEL
 				// =========================
 				if (settings.channelLog) {
-					const logChannel =
-						interaction.guild.channels.cache.get(
-							settings.channelLog,
-						);
+					const logChannel = interaction.guild.channels.cache.get(
+						settings.channelLog,
+					);
 
 					if (logChannel) {
 						const logEmbed = new EmbedBuilder()
-							.setTitle(
-								`📝 ${displayName} menebus penalty`,
-							)
+							.setTitle(`📝 ${displayName} menebus penalty`)
 							.setColor('Blue')
 							.setThumbnail(
 								member.displayAvatarURL({
@@ -245,6 +274,11 @@ module.exports = new ApplicationCommand({
 								{
 									name: '📋 Poin Ditebus',
 									value: `${jumlahPoin} point`,
+									inline: true,
+								},
+								{
+									name: `🪙 Harga Poin`,
+									value: `${pointPrice}`,
 									inline: true,
 								},
 								{
@@ -264,9 +298,7 @@ module.exports = new ApplicationCommand({
 							)
 							.setTimestamp();
 
-						logChannel
-							.send({ embeds: [logEmbed] })
-							.catch(() => {});
+						logChannel.send({ embeds: [logEmbed] }).catch(() => {});
 					}
 				}
 
@@ -277,6 +309,7 @@ module.exports = new ApplicationCommand({
 					content:
 						`✅ **Penalty berhasil ditebus!**\n\n` +
 						`➖ Penalty ditebus : **${jumlahPoin} point**\n` +
+						`🪙 Harga per 1 Poin : **${pointPrice}** N¢\n` +
 						`➖ NC terpakai     : **${totalCost} N¢**\n` +
 						`📊 Sisa penalty   : **${updatedPoint.totalPoints} point**`,
 					components: [],
@@ -294,8 +327,7 @@ module.exports = new ApplicationCommand({
 		} catch (err) {
 			console.error('❌ Error bayarpoin:', err);
 			return interaction.reply({
-				content:
-					'⚠️ Terjadi kesalahan saat memproses permintaan.',
+				content: '⚠️ Terjadi kesalahan saat memproses permintaan.',
 				ephemeral: true,
 			});
 		}
