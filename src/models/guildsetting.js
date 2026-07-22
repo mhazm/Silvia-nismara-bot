@@ -9,6 +9,7 @@ const guildSettingsSchema = new mongoose.Schema(
 		eventNotifyChannel: { type: String, default: null },
 		memberWatcherChannel: { type: String, default: null },
 		interviewCategory: { type: String, default: null },
+		achievementChannel: { type: String, default: null },
 		pointPrice: { type: Number, default: 3000 },
 
 		// Role-role khusus untuk perintah
