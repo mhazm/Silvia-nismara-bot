@@ -125,12 +125,14 @@ module.exports = new ApplicationCommand({
 					name: '📜 Riwayat Transaksi',
 					value: pageData
 						.map(
-							(t) =>
-								`• **${
-									t.amount > 0 ? '🟢 +' : '🔴 -'
-								}${Math.abs(t.amount)} N¢** — ${t.reason}\n(oleh: <@${t.managerId}>, <t:${Math.floor(
+							(t) => {
+								const sign = t.type === 'spend' ? '🔴 -' : '🟢 +';
+								return `• **${sign}${Math.abs(
+									t.amount,
+								)} N¢** — ${t.reason}\n(oleh: <@${t.managerId}>, <t:${Math.floor(
 									new Date(t.createdAt).getTime() / 1000,
-								)}:f>`,
+								)}:f>)`;
+							},
 						)
 						.join('\n'),
 				});

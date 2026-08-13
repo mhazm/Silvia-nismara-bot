@@ -8,6 +8,7 @@ const DiscordBot = require('../../client/DiscordBot');
 const Currency = require('../../models/currency');
 const CurrencyHistory = require('../../models/currencyHistory');
 const GuildSettings = require('../../models/guildsetting');
+const config = require('../../config');
 
 module.exports = new ApplicationCommand({
 	command: {
@@ -107,6 +108,25 @@ module.exports = new ApplicationCommand({
 
 		currency.totalNC += amount;
 		await currency.save();
+
+		// Notifikasi ke owner jika pemberian NC melebihi 10.000
+		if (amount >= 10000) {
+			try {
+				const owner = await client.users.fetch(config.users.ownerId);
+				if (owner) {
+					await owner.send(
+						`⚠️ **ALERT GIVENC DALAM JUMLAH BESAR** ⚠️\n\n` +
+						`**Admin:** ${interaction.user.tag} (\`${interaction.user.id}\`)\n` +
+						`**Penerima:** ${target.tag} (\`${target.id}\`)\n` +
+						`**Nominal Diberikan:** **${amount.toLocaleString('id-ID')} N¢**\n` +
+						`**Alasan:** ${reason}\n` +
+						`**Server:** ${interaction.guild.name}`
+					);
+				}
+			} catch (err) {
+				console.error('Gagal mengirim DM ke owner:', err);
+			}
+		}
 
 		// Save history
 		await CurrencyHistory.create({

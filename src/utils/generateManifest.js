@@ -6,6 +6,7 @@ async function buildJobInvoice(
 	job,
 	reward,
 	cost,
+	discount,
 	rewardTotal,
 	totalCurrency,
 	driverName,
@@ -429,12 +430,33 @@ async function buildJobInvoice(
 			.fontSize(9)
 			.text('5. FINANCIAL & NC REPORTS', 40, startY);
 
+		let earningItems = 0;
+		if (reward.base > 0) earningItems++;
+		if (reward.special > 0) earningItems++;
+		if (reward.hardcore > 0) earningItems++;
+		if (reward.event > 0) earningItems++;
+		if (reward.nismaraplus > 0) earningItems++;
+		if (reward.booster > 0) earningItems++;
+		if (discount && discount.insurance > 0) earningItems++;
+		if (discount && discount.nismaraplus > 0) earningItems++;
+
+		let deductionItems = 0;
+		if (cost.rent > 0) deductionItems++;
+		if (cost.service > 0) deductionItems++;
+		if (cost.fuel > 0) deductionItems++;
+		if (cost.fines > 0) deductionItems++;
+		if (penaltyDetails && penaltyDetails.maintenance > 0) deductionItems++;
+
+		const maxItems = Math.max(earningItems, deductionItems, 2);
+		const netProfitY = startY + 40 + maxItems * 15 + 5;
+		const mainBoxHeight = netProfitY - (startY + 15) + 35;
+
 		doc.fillColor(bgWhite)
 			.strokeColor(borderLine)
-			.rect(40, startY + 15, 515, 125)
+			.rect(40, startY + 15, 515, mainBoxHeight)
 			.stroke();
 		doc.moveTo(297.5, startY + 15)
-			.lineTo(297.5, startY + 105)
+			.lineTo(297.5, netProfitY)
 			.strokeColor(borderLine)
 			.stroke();
 
@@ -476,13 +498,42 @@ async function buildJobInvoice(
 				width: 55,
 				align: 'right',
 			});
+			incY += 15;
 		}
+		if (reward.nismaraplus > 0) {
+			doc.text(`Nismara Plus Member`, 55, incY);
+			doc.text(`${reward.nismaraplus} N¢`, 225, incY, {
+				width: 55,
+				align: 'right',
+			});
+			incY += 15;
+		}
+
 		if (reward.booster > 0) {
 			doc.text(`Server Booster`, 55, incY);
 			doc.text(`${reward.booster} N¢`, 225, incY, {
 				width: 55,
 				align: 'right',
 			});
+			incY += 15;
+		}
+
+		if (discount && discount.insurance > 0) {
+			doc.text(`Insurance Cover`, 55, incY);
+			doc.text(`${discount.insurance} N¢`, 225, incY, {
+				width: 55,
+				align: 'right',
+			});
+			incY += 15;
+		}
+
+		if (discount && discount.nismaraplus > 0) {
+			doc.text(`Nismara+ Service Cover`, 55, incY);
+			doc.text(`${discount.nismaraplus} N¢`, 225, incY, {
+				width: 55,
+				align: 'right',
+			});
+			incY += 15;
 		}
 
 		doc.fillColor(failRed)
@@ -514,6 +565,25 @@ async function buildJobInvoice(
 				width: 55,
 				align: 'right',
 			});
+			expY += 15;
+		}
+
+		if (cost.fines > 0) {
+			doc.text(`Traffic Fines`, 312, expY);
+			doc.text(`-${cost.fines} N¢`, 480, expY, {
+				width: 55,
+				align: 'right',
+			});
+			expY += 15;
+		}
+
+		if (penaltyDetails && penaltyDetails.maintenance > 0) {
+			doc.text(`Fleet Penalty`, 312, expY);
+			doc.text(`-${penaltyDetails.maintenance} N¢`, 480, expY, {
+				width: 55,
+				align: 'right',
+			});
+			expY += 15;
 		}
 
 		const netColor = rewardTotal >= 0 ? '#f0fdf4' : '#fef2f2';
@@ -521,58 +591,18 @@ async function buildJobInvoice(
 
 		doc.fillColor(netColor)
 			.strokeColor(borderLine)
-			.rect(40, startY + 105, 515, 35)
+			.rect(40, netProfitY, 515, 35)
 			.fillAndStroke();
 		doc.fillColor(textBlack)
 			.font('GoogleSans-Bold')
 			.fontSize(11)
-			.text('NET PROFIT (FINAL NC)', 55, startY + 117);
-		doc.fillColor(netText).text(`${rewardTotal} N¢`, 390, startY + 117, {
+			.text('NET PROFIT (FINAL NC)', 55, netProfitY + 12);
+		doc.fillColor(netText).text(`${rewardTotal} N¢`, 390, netProfitY + 12, {
 			width: 150,
 			align: 'right',
 		});
 
-		startY += 165;
-
-		// ==========================================================
-		//  7️⃣ FOOTER & SIGNATURE (Aman di Page 1)
-		// ==========================================================
-		doc.moveTo(40, startY + 30)
-			.lineTo(180, startY + 30)
-			.strokeColor(borderLine)
-			.stroke();
-
-		doc.fillColor(textBlack)
-			.font('Handwriting')
-			.fontSize(21)
-			.text(driverName, 40, startY - 20, { width: 140, align: 'center' });
-		doc.fillColor(textGray)
-			.font('GoogleSans-Bold')
-			.fontSize(7)
-			.text('DIGITAL SIGNATURE', 40, startY + 35, {
-				width: 140,
-				align: 'center',
-			});
-
-		doc.strokeColor(textBlack)
-			.lineWidth(2)
-			.rect(410, startY - 10, 130, 35)
-			.stroke();
-		doc.fillColor(textBlack)
-			.font('GoogleSans-Bold')
-			.fontSize(16)
-			.text('DELIVERED', 410, startY, { width: 130, align: 'center' });
-		doc.lineWidth(1);
-
-		doc.fillColor(textGray)
-			.font('GoogleSans')
-			.fontSize(8)
-			.text(
-				`Total Current Balance: ${totalCurrency} N¢`,
-				40,
-				startY + 65,
-				{ width: 515, align: 'center' },
-			);
+		// Footer & Signature dipindahkan ke Page 2
 
 		// ==========================================================
 		//  📄 HALAMAN 2: LAPORAN KERUSAKAN & PINALTI
@@ -728,6 +758,92 @@ async function buildJobInvoice(
 				align: 'right',
 			});
 		}
+
+		// --- 8. TRAFFIC FINES DETAILS ---
+		let nextY =
+			!penaltyDetails || penaltyDetails.total === 0
+				? p2Y + 85
+				: p2Y + 175;
+
+		if (
+			penaltyDetails &&
+			penaltyDetails.finesEvents &&
+			penaltyDetails.finesEvents.length > 0
+		) {
+			doc.fillColor(accentColor)
+				.font('GoogleSans-Bold')
+				.fontSize(9)
+				.text('8. TRAFFIC FINES DETAILS', 40, nextY);
+
+			let boxHeight = 40 + penaltyDetails.finesEvents.length * 15;
+			doc.fillColor('#fef2f2')
+				.strokeColor(failRed)
+				.rect(40, nextY + 15, 515, boxHeight)
+				.fillAndStroke();
+
+			let fineY = nextY + 30;
+			doc.fillColor(textBlack)
+				.font('GoogleSans-Bold')
+				.fontSize(10)
+				.text('Recorded Fines:', 60, fineY);
+			fineY += 20;
+
+			doc.font('GoogleSans').fontSize(9);
+			penaltyDetails.finesEvents.forEach((fine) => {
+				doc.fillColor(failRed).text(`• ${fine.offenceName}`, 65, fineY);
+				doc.text(`-${fine.amount} N¢`, 450, fineY, {
+					width: 80,
+					align: 'right',
+				});
+				fineY += 15;
+			});
+			nextY += boxHeight + 35; // Adjust nextY if section 8 is rendered
+		}
+
+		// ==========================================================
+		//  9️⃣ FOOTER & SIGNATURE (Aman di Page 2)
+		// ==========================================================
+		let finalY = nextY + 30; // give some margin
+
+		doc.moveTo(40, finalY + 30)
+			.lineTo(200, finalY + 30)
+			.strokeColor(borderLine)
+			.stroke();
+
+		const sigFontSize =
+			driverName.length > 15 ? 15 : driverName.length > 10 ? 18 : 21;
+
+		doc.fillColor(textBlack)
+			.font('Handwriting')
+			.fontSize(sigFontSize)
+			.text(driverName, 40, finalY - 20, { width: 160, align: 'center' });
+		doc.fillColor(textGray)
+			.font('GoogleSans-Bold')
+			.fontSize(7)
+			.text('DIGITAL SIGNATURE', 40, finalY + 35, {
+				width: 160,
+				align: 'center',
+			});
+
+		doc.strokeColor(textBlack)
+			.lineWidth(2)
+			.rect(410, finalY - 10, 130, 35)
+			.stroke();
+		doc.fillColor(textBlack)
+			.font('GoogleSans-Bold')
+			.fontSize(16)
+			.text('DELIVERED', 410, finalY, { width: 130, align: 'center' });
+		doc.lineWidth(1);
+
+		doc.fillColor(textGray)
+			.font('GoogleSans')
+			.fontSize(8)
+			.text(
+				`Total Current Balance: ${totalCurrency} N¢`,
+				40,
+				finalY + 65,
+				{ width: 515, align: 'center' },
+			);
 
 		doc.end();
 	});

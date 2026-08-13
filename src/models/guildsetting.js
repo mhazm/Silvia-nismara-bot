@@ -11,6 +11,12 @@ const guildSettingsSchema = new mongoose.Schema(
 		interviewCategory: { type: String, default: null },
 		achievementChannel: { type: String, default: null },
 		pointPrice: { type: Number, default: 3000 },
+		insurancePrice: { type: Number, default: 5000 },
+		fuel: {
+			price: { type: Number, default: 0.3 },
+			minPrice: { type: Number, default: 0.3 },
+			maxPrice: { type: Number, default: 0.3 },
+		},
 
 		// Role-role khusus untuk perintah
 		roles: {

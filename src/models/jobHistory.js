@@ -36,6 +36,7 @@ const jobHistorySchema = new mongoose.Schema(
 		destinationCity: String,
 		sourceCompany: String,
 		destinationCompany: String,
+		cargoId: String,
 		cargoName: String,
 		cargoMass: Number,
 		plannedDistanceKm: Number,
@@ -44,6 +45,9 @@ const jobHistorySchema = new mongoose.Schema(
 		revenue: Number,
 		startedAt: Date,
 		completedAt: Date,
+
+		// Locked Price
+		lockedCargoPrice: { type: Number },
 
 		// vehicle info
 		vehicle: {
@@ -56,8 +60,22 @@ const jobHistorySchema = new mongoose.Schema(
 			enum: ['Owned', 'Rental', 'Company'],
 		},
 
+		// Data armada perusahaan (jika menggunakan Company Fleet)
+		fleet_data: {
+			fleet_id: {
+				type: mongoose.Schema.Types.ObjectId,
+				ref: 'Fleet',
+				default: null,
+			}, // Referensi ke database Fleet
+			fleet_number: { type: String, default: null }, // Nomor lambung (e.g., "01")
+			fleet_name: { type: String, default: null }, // Nama armada (e.g., "Scania S")
+			in_game_id: { type: String, default: null }, // Trucky in_game_id
+		},
+
 		vehicleId: { type: String, default: null },
 		vehicleRentCost: { type: Number, default: 0 },
+		rentPricePerKm: { type: Number, default: 0 },
+		marketFuelPricePerL: { type: Number, default: 0 },
 
 		// hardcore
 		isHardcore: { type: Boolean, default: false },
@@ -77,6 +95,7 @@ const jobHistorySchema = new mongoose.Schema(
 			hardcore: Number,
 			event: Number,
 			booster: Number,
+			nismaraplus: Number,
 			total: Number,
 		},
 
@@ -84,8 +103,24 @@ const jobHistorySchema = new mongoose.Schema(
 			rent: Number,
 			service: Number,
 			fuel: Number,
+			fines: Number,
 			total: Number,
 		},
+
+		fines_events: [
+			{
+				offenceName: String,
+				amount: Number,
+			},
+		],
+
+		discount: {
+			nismaraplus: { type: Number, default: 0 },
+			insurance: { type: Number, default: 0 },
+			total: { type: Number, default: 0 },
+		},
+
+		maintenance_penalty: { type: Number, default: 0 },
 
 		// Penalty
 		penalty: {
@@ -94,6 +129,16 @@ const jobHistorySchema = new mongoose.Schema(
 			cargo: Number,
 			speed: Number,
 			distance: Number,
+			total: Number,
+		},
+
+		xp: {
+			base: Number,
+			special: Number,
+			hardcore: Number,
+			event: Number,
+			booster: Number,
+			nismaraplus: Number,
 			total: Number,
 		},
 

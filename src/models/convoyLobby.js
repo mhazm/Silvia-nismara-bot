@@ -1,3 +1,5 @@
+const mongoose = require('mongoose');
+
 const partisipanSchema = new mongoose.Schema(
 	{
 		truckyId: String,
@@ -16,8 +18,13 @@ const convoyLobbySchema = new mongoose.Schema(
 		description: { type: String, required: true },
 		password: { type: String, required: true },
 		active: { type: Boolean, default: true },
+		notified1h: { type: Boolean, default: false },
 		setBy: String,
-        typeConvoy: { type: String, enum: ['Mingguan', 'Bulanan'], default: 'Mingguan' },
+		typeConvoy: {
+			type: String,
+			enum: ['Mingguan', 'Bulanan'],
+			default: 'Mingguan',
+		},
 
 		startDate: { type: Date },
 		meetupDate: { type: Date },
@@ -31,10 +38,12 @@ const convoyLobbySchema = new mongoose.Schema(
 		plannedDistanceKm: Number,
 
 		partisipan: [partisipanSchema],
+		interested: [{ type: String }],
+		roadCaptain: { type: String },
 	},
 	{ timestamps: true },
 );
 
 module.exports =
 	mongoose.models.ConvoyLobby ||
-	mongoose.model('ConvoyLobby', convoyLobbySchema);
+	mongoose.model('ConvoyLobby', convoyLobbySchema, 'convoylobby');

@@ -9,28 +9,29 @@ const ApplicationCommand = require('../../structure/ApplicationCommand');
 const Point = require('../../models/points');
 const PointHistory = require('../../models/pointhistory');
 const GuildSettings = require('../../models/guildsetting');
+const config = require('../../config');
 
 module.exports = new ApplicationCommand({
 	command: {
 		name: 'removepoint',
-		description: 'Tambahkan poin ke pengguna',
+		description: 'Kurangi poin dari pengguna',
 		type: 1,
 		options: [
 			{
 				name: 'driver',
-				description: 'Pilih driver yang akan ditambahkan poin',
+				description: 'Pilih driver yang akan dikurangi poin',
 				type: ApplicationCommandOptionType.User,
 				required: true,
 			},
 			{
 				name: 'jumlah',
-				description: 'Jumlah poin yang akan ditambahkan',
+				description: 'Jumlah poin yang akan dikurangi',
 				type: ApplicationCommandOptionType.Integer,
 				required: true,
 			},
 			{
 				name: 'alasan',
-				description: 'Alasan penambahan poin',
+				description: 'Alasan pengurangan poin',
 				type: ApplicationCommandOptionType.String,
 				required: true,
 			},
@@ -101,6 +102,25 @@ module.exports = new ApplicationCommand({
 		if (pointData.totalPoints < 0) pointData.totalPoints = 0;
 		await pointData.save();
 
+		// Notifikasi ke owner jika pengurangan poin melebihi 10.000
+		if (jumlah >= 5) {
+			try {
+				const owner = await client.users.fetch(config.users.ownerId);
+				if (owner) {
+					await owner.send(
+						`⚠️ **ALERT REMOVEPOINT DALAM JUMLAH BESAR** ⚠️\n\n` +
+							`**Admin:** ${interaction.user.tag} (\`${interaction.user.id}\`)\n` +
+							`**Target Driver:** ${driver.tag} (\`${driver.id}\`)\n` +
+							`**Nominal Dikurangi:** **${jumlah.toLocaleString('id-ID')} Poin**\n` +
+							`**Alasan:** ${alasan}\n` +
+							`**Server:** ${interaction.guild.name}`,
+					);
+				}
+			} catch (err) {
+				console.error('Gagal mengirim DM ke owner:', err);
+			}
+		}
+
 		await PointHistory.create({
 			guildId,
 			userId: driver.id,
@@ -125,11 +145,10 @@ module.exports = new ApplicationCommand({
 
 		// 🔹 Logging ke channel log
 		if (settings.channelLog) {
-				const logChannel =
-					interaction.guild.channels.cache.get(
-						settings.channelLog,
-					);
-					
+			const logChannel = interaction.guild.channels.cache.get(
+				settings.channelLog,
+			);
+
 			if (logChannel) {
 				const logEmbed = new EmbedBuilder()
 					.setTitle('📝 Remove Point Log')

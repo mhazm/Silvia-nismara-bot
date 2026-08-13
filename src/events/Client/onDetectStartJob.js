@@ -9,6 +9,8 @@ const DriverRegistry = require('../../models/driverlink');
 const GuildSettings = require('../../models/guildsetting');
 const JobHistory = require('../../models/jobHistory');
 const Contract = require('../../models/contract');
+const Cargo = require('../../models/cargo');
+const CargoMarketHistory = require('../../models/cargoMarketHistory');
 const {
 	applyCancelPenalty,
 } = require('../../services/cancelJobPenalty.service');
@@ -215,6 +217,7 @@ module.exports = new Event({
 						'Rental Vehicle',
 				},
 				vehicleId: job.vehicle_id || null,
+				cargoId: job.cargo_id || null,
 				cargoName: job.cargo_name,
 				cargoMass: job.cargo_mass_t ?? 0,
 				plannedDistanceKm: job.planned_distance_km,
@@ -222,6 +225,112 @@ module.exports = new Event({
 				status: 'ongoing',
 				startedAt: new Date(),
 			});
+
+			let cargo = await Cargo.findOne({
+				in_game_id: job.cargo_id,
+				game_id: job.game_id,
+			});
+
+			if (!cargo) {
+				console.log(
+					`Cargo ${job.cargo_id} not found for game ${job.game_id}. Mendaftarkan cargo baru...`,
+				);
+				try {
+					let finalId = job.cargo_definition_id;
+					if (!finalId) {
+						const lastCargo = await Cargo.findOne()
+							.sort({ id: -1 })
+							.collation({
+								locale: 'en_US',
+								numericOrdering: true,
+							});
+
+						let nextId = 6000;
+						if (lastCargo && !isNaN(parseInt(lastCargo.id))) {
+							const maxId = parseInt(lastCargo.id);
+							if (maxId >= 6000) {
+								nextId = maxId + 1;
+							}
+						}
+						finalId = String(nextId);
+					} else {
+						finalId = String(finalId);
+					}
+
+					cargo = await Cargo.create({
+						id: finalId,
+						name: job.cargo_name || 'Unknown Cargo',
+						in_game_id: job.cargo_id || 'unknown_cargo_id',
+						game_id: job.game_id || 1,
+						mass: (job.cargo_mass_t || 0) * 1000,
+						volume: job.cargo_unit_count,
+						price_per_km: 1.5,
+						price_per_km_with_market_change: 1.5,
+						market_demand: 0,
+						job_count: 0,
+						enabled: true,
+					});
+				} catch (err) {
+					console.error('❌ Gagal membuat auto-cargo:', err);
+				}
+			}
+
+			const initialPrice =
+				cargo?.price_per_km_with_market_change ||
+				cargo?.price_per_km ||
+				1;
+			await JobHistory.updateOne(
+				{ guildId, jobId },
+				{ $set: { lockedCargoPrice: initialPrice } },
+			);
+
+			if (cargo) {
+				const newMarketDemand = Math.max(
+					-50,
+					(cargo.market_demand || 0) - 5,
+				);
+				const newPricePerKmWithMarketChange =
+					Math.round(
+						(cargo.price_per_km +
+							cargo.price_per_km * (newMarketDemand / 100)) *
+							100,
+					) / 100;
+
+				// Tambahkan ke CargoMarketHistory untuk mencatat penurunan ini di grafik
+				if (
+					cargo.market_demand !== newMarketDemand ||
+					cargo.price_per_km_with_market_change !==
+						newPricePerKmWithMarketChange
+				) {
+					await CargoMarketHistory.create({
+						cargo_id: cargo._id,
+						in_game_id: cargo.in_game_id,
+						old_market_demand: cargo.market_demand || 0,
+						new_market_demand: newMarketDemand,
+						old_price:
+							cargo.price_per_km_with_market_change ||
+							cargo.price_per_km,
+						new_price: newPricePerKmWithMarketChange,
+					});
+				}
+
+				await Cargo.findOneAndUpdate(
+					{
+						in_game_id: job.cargo_id,
+						game_id: job.game_id,
+					},
+					{
+						$inc: {
+							job_count: 1,
+						},
+						$set: {
+							market_demand: newMarketDemand,
+							price_per_km_with_market_change:
+								newPricePerKmWithMarketChange,
+						},
+					},
+				);
+			}
 
 			// PERBAIKAN 2: Pindahkan waktu ke luar scope agar aman digunakan oleh Embed User reguler maupun spesial
 			const actualCreatedAt = Math.floor(
