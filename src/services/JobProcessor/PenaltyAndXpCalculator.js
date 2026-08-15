@@ -2,28 +2,18 @@ const Point = require('../../models/points');
 const PointHistory = require('../../models/pointhistory');
 
 function calcVehiclePenalty(dmg) {
-	if (dmg < 2) return 0;
-	if (dmg >= 2 && dmg <= 5) return 2;
-	if (dmg >= 6 && dmg <= 15) return 4;
-	if (dmg >= 16 && dmg <= 20) return 6;
-	if (dmg >= 21 && dmg <= 35) return 8;
-	return 10;
+	if (dmg < 11) return 0;
+	return 1 + Math.floor((dmg - 10) / 5);
 }
 
 function calcTrailerPenalty(dmg) {
-	if (dmg < 2) return 0;
-	if (dmg >= 2 && dmg <= 5) return 2;
-	if (dmg >= 6 && dmg <= 10) return 4;
-	if (dmg >= 11 && dmg <= 20) return 6;
-	return 8;
+	if (dmg < 8) return 0;
+	return 1 + Math.floor((dmg - 7) / 7);
 }
 
 function calcCargoPenalty(dmg) {
-	if (dmg < 2) return 0;
-	if (dmg >= 2 && dmg <= 5) return 3;
-	if (dmg >= 6 && dmg <= 10) return 5;
-	if (dmg >= 11 && dmg <= 15) return 7;
-	return 10;
+	if (dmg < 6) return 0;
+	return 1 + Math.floor((dmg - 5) / 5);
 }
 
 function calcVehicleTmpPenalty(dmg, step) {
@@ -68,11 +58,14 @@ async function calculatePenaltyAndXp(context, client) {
 	// 1. XP CALCULATION
 	const km = Number(job.driven_distance_km || 0);
 	context.xp.base = Math.round(km * 0.5);
-	context.xp.hardcore = context.reward.hardcore > 0 ? Math.round(km * 0.5) : 0;
+	context.xp.hardcore =
+		context.reward.hardcore > 0 ? Math.round(km * 0.5) : 0;
 	context.xp.special = context.isSpecialContract ? Math.round(km * 0.3) : 0;
 	context.xp.event = context.isActiveEvent ? Math.round(km * 0.2) : 0;
 	context.xp.booster = context.isDriverBooster ? Math.round(km * 0.2) : 0;
-	context.xp.nismaraplus = context.isDriverNismaraPlus ? Math.round(km * 0.2) : 0;
+	context.xp.nismaraplus = context.isDriverNismaraPlus
+		? Math.round(km * 0.2)
+		: 0;
 
 	context.xp.total =
 		context.xp.base +
@@ -112,7 +105,8 @@ async function calculatePenaltyAndXp(context, client) {
 
 	const pointDb = await Point.findOne({ guildId, userId: discordId });
 	context.totalPointsBefore = pointDb ? pointDb.totalPoints : 0;
-	context.currentPenaltyPoints = context.totalPointsBefore + context.penalty.total;
+	context.currentPenaltyPoints =
+		context.totalPointsBefore + context.penalty.total;
 
 	// Helper function for embedding available later
 	context.formatStatsType = formatStatsType;
@@ -136,7 +130,7 @@ async function calculatePenaltyAndXp(context, client) {
 					totalPoints: context.penalty.total,
 				},
 			},
-			{ upsert: true, new: true }
+			{ upsert: true, new: true },
 		);
 	}
 

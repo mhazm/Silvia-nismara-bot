@@ -47,11 +47,11 @@ async function calculateExpenses(context, client) {
 	const serviceDetails = job.damage_cost_details
 		? JSON.parse(job.damage_cost_details)
 		: {};
-	const cargoDamageCost = Math.round(serviceDetails?.cargo_damage / 5) || 0;
+	const cargoDamageCost = Math.round(serviceDetails?.cargo_damage / 2) || 0;
 	const vehicleDamageCost =
-		Math.round(serviceDetails?.vehicle_damage / 5) || 0;
+		Math.round(serviceDetails?.vehicle_damage / 2) || 0;
 	const trailerDamageCost =
-		Math.round(serviceDetails?.trailers_damage / 5) || 0;
+		Math.round(serviceDetails?.trailers_damage / 2) || 0;
 	context.cost.service = Math.round(
 		cargoDamageCost + vehicleDamageCost + trailerDamageCost,
 	);
