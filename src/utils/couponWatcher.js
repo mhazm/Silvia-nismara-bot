@@ -41,10 +41,11 @@ module.exports = async function startCouponWatcher(client) {
 
                     if (channel) {
                         let statsValue = '';
+                        const totalClaimed = (ev.driverClaims || []).reduce((sum, claim) => sum + (claim.amount || 0), 0);
                         if (ev.type === 'PENALTY_TICKET') {
-                            statsValue = `• **Total Tiket Penalty diklaim**: ${ev.totalNcClaimed || 0} Tiket\n`;
+                            statsValue = `• **Total Tiket Penalty diklaim**: ${totalClaimed} Tiket\n`;
                         } else {
-                            statsValue = `• **Total N¢ diklaim**: ${(ev.totalNcClaimed || 0).toLocaleString()} N¢\n`;
+                            statsValue = `• **Total N¢ diklaim**: ${totalClaimed.toLocaleString()} N¢\n`;
                         }
                         statsValue += `• **Total Partisipan**: ${participantCount} driver`;
 
