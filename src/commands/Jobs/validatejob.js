@@ -1,282 +1,54 @@
 const {
-	ChatInputCommandInteraction,
-	ApplicationCommandOptionType,
+	ActionRowBuilder,
+	ButtonBuilder,
+	ButtonStyle,
 	EmbedBuilder,
 } = require('discord.js');
 
-const DiscordBot = require('../../client/DiscordBot');
-const ApplicationCommand = require('../../structure/ApplicationCommand');
-
-const DriverLink = require('../../models/driverlink');
-const Point = require('../../models/points');
-const PointHistory = require('../../models/pointhistory');
-const GuildSettings = require('../../models/guildsetting');
-const validatedJob = require('../../models/validatedJob');
+const ApplicationCommand = require('../../structure/ApplicationCommand.js');
 
 module.exports = new ApplicationCommand({
 	command: {
 		name: 'validatejob',
-		description:
-			'Validasi job Trucky untuk mengurangi poin penalti secara otomatis.',
+		description: 'Validasi job Trucky untuk mengurangi poin penalti (Pindah ke Web)',
 		type: 1,
-		options: [
-			{
-				name: 'jobid',
-				description: 'Job ID dari Trucky',
-				type: ApplicationCommandOptionType.Integer,
-				required: true,
-			},
-		],
 	},
 	options: {
 		allowedRoles: ['driver'],
-		cooldown: 10000,
 	},
 
-	/**
-	 *
-	 * @param {DiscordBot} client
-	 * @param {ChatInputCommandInteraction} interaction
-	 */
 	run: async (client, interaction) => {
-		await interaction.deferReply({ ephemeral: true });
-
 		try {
-			const guildId = interaction.guild.id;
-			const userId = interaction.user.id;
-			const jobId = interaction.options.getInteger('jobid');
+			const webUrl =
+				process.env.WEB_URL || 'https://transport.nismara.web.id';
+			const link = `${webUrl}/dashboard/points`;
 
-			// =========================================
-			// 1. CEK APAKAH DRIVER TERDAFTAR
-			// =========================================
-			const link = await DriverLink.findOne({ guildId, userId });
-
-			if (!link)
-				return interaction.editReply(
-					'❌ Kamu belum terdaftar sebagai driver resmi Nismara.\nGunakan `/registerdriver` dulu.',
-				);
-
-			// =========================================
-			// 2. FETCH DATA JOB DARI TRUCKY
-			// =========================================
-			const res = await fetch(
-				`https://e.truckyapp.com/api/v1/job/${jobId}`,
-				{
-					headers: {
-						Accept: 'application/json',
-						'User-Agent': 'SilviaBot/1.0',
-					},
-				},
+			const row = new ActionRowBuilder().addComponents(
+				new ButtonBuilder()
+					.setLabel('Validasi Job di Web Dashboard')
+					.setStyle(ButtonStyle.Link)
+					.setURL(link),
 			);
 
-			if (!res.ok)
-				return interaction.editReply(
-					'❌ Job ID tidak ditemukan di Trucky API.',
-				);
+			const embed = new EmbedBuilder()
+				.setTitle('⚠️ Command Dinonaktifkan')
+				.setDescription(
+					'Command `/validatejob` via bot discord sekarang sudah tidak berfungsi.\n\n' +
+					'Silakan lakukan validasi job secara langsung melalui website dashboard Nismara Transport.',
+				)
+				.setColor('Orange');
 
-			const job = await res.json();
-
-			// =========================================
-			// 3. CEK APAKAH INI JOB DRIVER SENDIRI
-			// =========================================
-			if (job.driver.id !== link.truckyId)
-				return interaction.editReply(
-					`❌ Job ini bukan milik kamu!\n` +
-						`• Driver job: **${job.driver.name}**\n` +
-						`• Driver terdaftar: **${link.truckyName}**`,
-				);
-
-			// =========================================
-			// 4. CEK STATUS JOB
-			// =========================================
-			if (job.status !== 'completed')
-				return interaction.editReply(
-					'⚠️ Job ini belum selesai di Trucky.',
-				);
-
-			// =========================================
-			// 5. CEK APAKAH HARDCORE/SIMULATION
-			// =========================================
-			const mode = job.points; // biasanya "hardcore", "simulation_active", dll" realistic_leaderboard: true,  realistic_leaderboard": null,
-
-			if (mode < 1)
-				return interaction.editReply(
-					'❌ Job ini tidak valid karena **bukan Hardcore atau Simulation Active**.',
-				);
-
-			// =========================================
-			// 6. CEK RATING MINIMAL 4 + Validasi Job
-			// =========================================
-			const rating = job.delivery_rating_details?.rating ?? 0;
-
-			if (rating < 4)
-				return interaction.editReply(
-					`❌ Rating job kamu terlalu rendah!\nRating sekarang: **${rating}**, minimal **4**.`,
-				);
-
-			const alreadyValidated = await validatedJob.findOne({
-				guildId,
-				userId,
-				jobId: jobId,
+			return interaction.reply({
+				embeds: [embed],
+				components: [row],
+				ephemeral: true,
 			});
-
-			if (alreadyValidated)
-				return interaction.editReply(
-					'❌ Job ini sudah pernah divalidasi sebelumnya.',
-				);
-
-			// =========================================
-			// 7. HITUNG DISTANCE
-			// =========================================
-			const distance = Math.floor(job.real_driven_distance_km);
-
-			if (distance <= 0)
-				return interaction.editReply(
-					'❌ Trucky tidak memberikan data jarak.',
-				);
-
-			// =========================================
-			// 8. HITUNG PENGURANGAN POINT
-			// =========================================
-			const deducted = Math.floor(distance / 500);
-
-			if (deducted <= 0)
-				return interaction.editReply(
-					`⚠️ Jarak **${distance} km** belum cukup untuk mengurangi poin.\n` +
-						`• Minimal 500 km = -1 poin`,
-				);
-
-			// =========================================
-			// 9. UPDATE POINT DATABASE
-			// =========================================
-			let record = await Point.findOne({ guildId, userId });
-
-			if (!record) {
-				record = await Point.create({
-					guildId,
-					userId,
-					totalPoints: 0,
-				});
-			}
-
-			record.totalPoints = Math.max(record.totalPoints - deducted, 0);
-			await record.save();
-
-			// =========================================
-			// 10. SIMPAN RIWAYAT POINT
-			// =========================================
-			await PointHistory.create({
-				guildId,
-				userId,
-				points: deducted,
-				type: 'remove',
-				reason: `Validasi job #${jobId} (${distance} km)`,
-				managerId: client.user.id, // BOT SEBAGAI PENGURANG
-			});
-
-			// =========================================
-			// 11. SIMPAN RIWAYAT POINT VALIDATED JOB
-			// =========================================
-			await validatedJob.create({
-				guildId,
-				userId,
-				jobId: jobId,
-				distance: distance,
-				deducted: deducted,
-			});
-
-			// =========================================
-			// 12. KIRIM DM KE DRIVER
-			// =========================================
-			try {
-				const dmEmbed = new EmbedBuilder()
-					.setTitle('📉 Job Validated – Point Deducted')
-					.setColor('Red')
-					.setDescription(
-						`Job kamu telah divalidasi secara otomatis!\n` +
-							`**-${deducted} poin** telah dikurangi dari akun kamu.`,
-					)
-					.addFields(
-						{ name: 'Job ID', value: `#${jobId}`, inline: true },
-						{
-							name: 'Distance',
-							value: `${distance} km`,
-							inline: true,
-						},
-						{ name: 'Rating', value: `${rating}`, inline: true },
-						{
-							name: 'Total Poin Sekarang',
-							value: `${record.totalPoints}`,
-							inline: false,
-						},
-					)
-					.setTimestamp();
-
-				await interaction.user
-					.send({ embeds: [dmEmbed] })
-					.catch(() => {});
-			} catch {}
-
-			// =========================================
-			// 13. LOG KE CHANNEL
-			// =========================================
-			const settings = await GuildSettings.findOne({ guildId });
-
-			if (settings?.channelLog) {
-				const logChannel = interaction.guild.channels.cache.get(
-					settings.channelLog,
-				);
-
-				if (logChannel) {
-					const logEmbed = new EmbedBuilder()
-						.setTitle('📉 Job Validation Log')
-						.setColor('Red')
-						.addFields(
-							{
-								name: 'Driver',
-								value: `<@${userId}> (${link.truckyName})`,
-								inline: false,
-							},
-							{
-								name: 'Job ID',
-								value: `#${jobId}`,
-								inline: true,
-							},
-							{
-								name: 'Distance',
-								value: `${distance} km`,
-								inline: true,
-							},
-							{
-								name: 'Points Deducted',
-								value: `${deducted}`,
-								inline: true,
-							},
-							{
-								name: 'Rating',
-								value: `${rating}`,
-								inline: true,
-							},
-						)
-						.setFooter({ text: 'Automatic System' })
-						.setTimestamp();
-
-					logChannel.send({ embeds: [logEmbed] }).catch(() => {});
-				}
-			}
-
-			// =========================================
-			// 14. BALAS INTERACTION
-			// =========================================
-			return interaction.editReply(
-				`✅ **Job berhasil divalidasi!**\n` +
-					`• Distance: **${distance} km**\n` +
-					`• Rating: **${rating}**\n` +
-					`• Dikurangi: **${deducted} poin**`,
-			);
 		} catch (err) {
 			console.error('❌ Error validatejob:', err);
-			return interaction.editReply('⚠️ Terjadi kesalahan internal.');
+			return interaction.reply({
+				content: '⚠️ Terjadi kesalahan saat memproses permintaan.',
+				ephemeral: true,
+			});
 		}
 	},
 }).toJSON();
