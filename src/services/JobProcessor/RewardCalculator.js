@@ -100,12 +100,56 @@ async function calculateRewards(context, client, message) {
 	}
 
 	// 4. EVENT MULTIPLIER
-	const activeEvent = await NCEvent.findOne({ guildId });
-	if (activeEvent && activeEvent.endAt > new Date()) {
-		context.isActiveEvent = true;
-		const eventMultiplier = activeEvent.multiplier;
-		context.reward.event = Math.round(rewardJob * eventMultiplier);
-		console.log(`🎉 Event NC Boost aktif → x${eventMultiplier}`);
+	const activeEvent = await NCEvent.findOne({ 
+		guildId,
+		isActive: true,
+		endAt: { $gt: new Date() }
+	});
+
+	if (activeEvent) {
+		let isEligible = true;
+
+		// Check Game ID
+		if (activeEvent.gameId !== 'all' && activeEvent.gameId !== String(gameId)) {
+			isEligible = false;
+		}
+
+		// Check Type (Singleplayer vs TruckersMP)
+		if (isEligible && activeEvent.type !== 'all') {
+			const gameMode = driverJob.gameMode || 'sp';
+			
+			if (activeEvent.type === 'TruckersMP' && gameMode !== 'truckersmp') {
+				isEligible = false;
+			} else if (activeEvent.type === 'Singleplayer' && gameMode !== 'sp') {
+				isEligible = false;
+			}
+		}
+
+		if (isEligible) {
+			context.isActiveEvent = true;
+			const eventMultiplier = activeEvent.multiplier;
+			context.reward.event = Math.round(rewardJob * eventMultiplier);
+			
+			// 🔹 Tambahkan / Update Partisipan di Database
+			const participantIndex = activeEvent.participants.findIndex(
+				(p) => p.discordId === discordId
+			);
+
+			if (participantIndex !== -1) {
+				activeEvent.participants[participantIndex].totalEarned += context.reward.event;
+			} else {
+				activeEvent.participants.push({
+					discordId: discordId,
+					totalEarned: context.reward.event,
+				});
+			}
+			
+			await activeEvent.save();
+
+			console.log(`🎉 Event NC Boost aktif → x${eventMultiplier}`);
+		} else {
+			console.log('NC event active but job not eligible (Game/Type mismatch).');
+		}
 	} else {
 		console.log('No NC event active.');
 	}
