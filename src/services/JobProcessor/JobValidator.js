@@ -1,6 +1,7 @@
 const GuildSettings = require('../../models/guildsetting');
 const DriverRegistry = require('../../models/driverlink');
 const jobHistory = require('../../models/jobHistory');
+const Users = require('../../models/Users');
 
 function mapGame(game) {
 	if (game === 1 || game === '1') return 'Euro Truck Simulator 2';
@@ -99,6 +100,8 @@ async function validateAndFetchJob(client, message) {
 
 	const discordId = driver.userId;
 
+	const userData = await Users.findOne({ discordId });
+
 	// ==========================================================
 	//  ⭐ FETCH JOB HISTORY
 	// ==========================================================
@@ -173,6 +176,7 @@ async function validateAndFetchJob(client, message) {
 		gameId,
 		gameName,
 		driver,
+		userData,
 		driverJob,
 		lockId,
         roleMentions,
