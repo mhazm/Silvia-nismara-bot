@@ -1,5 +1,4 @@
 const GuildSettings = require('../models/guildsetting');
-const CouponHistory = require('../models/couponHistory');
 const Coupon = require('../models/coupon');
 const { EmbedBuilder } = require('discord.js');
 
@@ -12,35 +11,13 @@ module.exports = async function startCouponWatcher(client) {
 
             // Cari event yang sudah berakhir
             const events = await Coupon.find({
-                validUntil: { $lte: now },
+                endDate: { $lte: now },
+                isActive: true,
             });
 
             if (!events.length) return;
 
             for (const ev of events) {
-                const durationDays = ev.validUntil
-                    ? Math.ceil((ev.validUntil - ev.setAt) / (1000 * 60 * 60 * 24))
-                    : 'N/A';
-
-                await CouponHistory.create({
-                    guildId: ev.guildId,
-                    nameCoupon: ev.nameCoupon,
-                    codeCoupon: ev.codeCoupon,
-                    minAmount: ev.minAmount,
-                    maxAmount: ev.maxAmount,
-                    imageUrl: ev.imageUrl,
-
-                    startDate: ev.setAt,
-                    endDate: ev.validUntil,
-                    closedAt: new Date(),
-                    setBy: ev.setBy,
-                    durationDays: durationDays,
-
-                    totalNcClaimed: ev.totalNcClaimed,
-
-                    driverClaims: ev.driverClaims || [],
-                });
-
                 let participantCount = 0;
                 if (ev.driverClaims && ev.driverClaims.length) {
                     participantCount = ev.driverClaims.length;
@@ -48,7 +25,8 @@ module.exports = async function startCouponWatcher(client) {
 
                 const guild = client.guilds.cache.get(ev.guildId);
                 if (!guild) {
-                    await Coupon.deleteOne({ _id: ev._id });
+                    ev.isActive = false;
+                    await ev.save();
                     continue;
                 }
 
@@ -62,20 +40,26 @@ module.exports = async function startCouponWatcher(client) {
                     );
 
                     if (channel) {
+                        let statsValue = '';
+                        if (ev.type === 'PENALTY_TICKET') {
+                            statsValue = `• **Total Tiket Penalty diklaim**: ${ev.totalNcClaimed || 0} Tiket\n`;
+                        } else {
+                            statsValue = `• **Total N¢ diklaim**: ${(ev.totalNcClaimed || 0).toLocaleString()} N¢\n`;
+                        }
+                        statsValue += `• **Total Partisipan**: ${participantCount} driver`;
+
                         const embed = new EmbedBuilder()
                             .setTitle(
                                 `🔔 Special Coupon ${ev.nameCoupon} telah berakhir`,
                             )
                             .setColor('Red')
                             .setDescription(
-                                `Special Coupon **${ev.nameCoupon}** dengan kode **${ev.codeCoupon}** yang berjalan sejak <t:${Math.floor(ev.setAt.getTime() / 1000)}:F> telah resmi berakhir.`,
+                                `Special Coupon **${ev.nameCoupon}** dengan kode **${ev.codeCoupon}** yang berjalan sejak <t:${Math.floor(ev.startDate.getTime() / 1000)}:F> telah resmi berakhir.`,
                             )
                             .addFields(
                                 {
                                     name: '📊 Statistik Akhir',
-                                    value:
-                                        `• **Total N¢ diklaim**: ${ev.totalNcClaimed.toLocaleString()} N¢\n` +
-                                        `• **Total Partisipan**: ${participantCount} driver`,
+                                    value: statsValue,
                                 },
                             )
                             .setTimestamp();
@@ -84,11 +68,12 @@ module.exports = async function startCouponWatcher(client) {
                     }
                 }
 
-                // 🔹 Hapus event aktif
-                await Coupon.deleteOne({ _id: ev._id });
+                // 🔹 Nonaktifkan event aktif
+                ev.isActive = false;
+                await ev.save();
 
                 console.log(
-                    `✅ Special Coupon ${ev.nameCoupon} expired & history closed for guild ${ev.guildId}`,
+                    `✅ Special Coupon ${ev.nameCoupon} expired & closed for guild ${ev.guildId}`,
                 );
             }
         } catch (err) {

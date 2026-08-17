@@ -1,31 +1,34 @@
 const mongoose = require('mongoose');
 
 const couponClaimedSchema = new mongoose.Schema(
-    {
-        driverId: { type: String, required: true },
-        ncAmount: { type: Number, default: 0 },
-        claimedAt: { type: Date, default: Date.now },
-    },
-    { _id: false }
+	{
+		discordId: { type: String }, // Discord ID user
+		driverId: { type: String, required: true }, // Trucky ID atau Discord ID fallback
+		amount: { type: Number, default: 0 }, // Jumlah NC atau Tiket yang didapatkan
+		claimedAt: { type: Date, default: Date.now },
+	},
+	{ _id: false },
 );
 
 const couponSchema = new mongoose.Schema(
-    {
-        guildId: { type: String, required: true },
-        nameCoupon: { type: String, required: true },
-        codeCoupon: { type: String, required: true },
-        minAmount: { type: Number, default: 0 }, // minimum amount to use the coupon
-        maxAmount: { type: Number, default: 0 }, // maximum discount amount
-        totalNcClaimed: { type: Number, default: 0 }, // total NC yang sudah diklaim dari kupon ini
-        imageUrl: { type: String }, // optional image URL for the coupon
-        validUntil: { type: Date }, // optional expiration date for the coupon
-        setBy: { type: String }, // siapa yang set
-        setAt: { type: Date, default: Date.now },
-
-        driverClaims: [couponClaimedSchema], // array untuk menyimpan klaim driver
-    },
-    { timestamps: true },
+	{
+		guildId: { type: String, required: true },
+		nameCoupon: { type: String, required: true },
+		codeCoupon: { type: String, required: true },
+		type: { type: String, enum: ['NC', 'PENALTY_TICKET'], default: 'NC' },
+		minAmount: { type: Number, default: 0 }, // minimum amount
+		maxAmount: { type: Number, default: 0 }, // maximum amount
+		totalNcClaimed: { type: Number, default: 0 }, // total reward yang sudah diklaim
+		imageUrl: { type: String, default: null }, // optional image URL
+		startDate: { type: Date, default: Date.now }, // kapan kupon dimulai
+		endDate: { type: Date }, // expiration date for the coupon
+		durationDays: { type: Number }, // durasi kupon
+		isActive: { type: Boolean, default: true }, // status aktif kupon
+		setBy: { type: String }, // siapa yang set
+		driverClaims: [couponClaimedSchema], // array untuk menyimpan klaim driver
+	},
+	{ timestamps: true },
 );
 
 module.exports =
-    mongoose.models.Coupon || mongoose.model('Coupon', couponSchema);
+	mongoose.models.Coupon || mongoose.model('Coupon', couponSchema);
