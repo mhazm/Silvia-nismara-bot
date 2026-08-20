@@ -4,10 +4,10 @@ const CargoMarketHistory = require('../models/cargoMarketHistory');
 
 module.exports = async function cargoMarketEvaluator(client) {
 	cron.schedule(
-		'0 */3 * * *',
+		'0 */12 * * *',
 		async () => {
 			console.log(
-				'🔄 [CRON] Memulai evaluasi Cargo Market (setiap 3 jam)...',
+				'🔄 [CRON] Memulai evaluasi Cargo Market (setiap 12 jam)...',
 			);
 
 			try {
@@ -88,6 +88,6 @@ module.exports = async function cargoMarketEvaluator(client) {
 	);
 
 	console.log(
-		'⏳ [CRON] Module Evaluasi Cargo Market (3 Jam) berhasil diaktifkan!',
+		'⏳ [CRON] Module Evaluasi Cargo Market (12 Jam) berhasil diaktifkan!',
 	);
 };
