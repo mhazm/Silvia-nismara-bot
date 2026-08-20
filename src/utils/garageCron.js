@@ -53,6 +53,23 @@ module.exports = async function startGarageWatcher(client) {
 			} else {
 				console.error(`[Garage Rent Check] Error:`, rentData);
 			}
+
+			// Update Community Goals
+			const goalsResponse = await fetch(`${url}/api/cron/community-goals`, {
+				method: 'GET',
+				headers: {
+					Authorization: `Bearer ${process.env.CRON_SECRET}`,
+				},
+			});
+
+			const goalsData = await goalsResponse.json();
+			if (goalsResponse.ok) {
+				console.log(
+					`[Community Goals Check] Berhasil update data community goals`,
+				);
+			} else {
+				console.error(`[Community Goals Check] Error:`, goalsData);
+			}
 		} catch (error) {
 			console.error(`[Garage Check] Failed to fetch:`, error);
 		}
