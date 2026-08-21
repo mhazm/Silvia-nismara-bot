@@ -12,6 +12,8 @@
 	"author": "Lemper",
 	"license": "GPL-3.0",
 	"dependencies": {
+		"@google/generative-ai": "^0.24.1",
+		"@modelcontextprotocol/sdk": "^1.30.0",
 		"chartjs-node-canvas": "^5.0.0",
 		"colors": "^1.4.0",
 		"discord.js": "^14.17.0",
@@ -21,7 +23,9 @@
 		"mongoose": "^8.19.3",
 		"node-cron": "^4.6.0",
 		"pdfkit": "^0.19.1",
-		"quick-yaml.db": "^1.2.2"
+		"quick-yaml.db": "^1.2.2",
+		"redis": "^6.2.1",
+		"zod": "^4.4.3"
 	},
 	"repository": {
 		"type": "git",

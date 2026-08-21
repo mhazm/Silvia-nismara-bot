@@ -14,6 +14,7 @@ const startConvoyNotificationWatcher = require('./utils/convoyNotification');
 const startNismaraPlusWatcher = require('./utils/nismaraPlusWatcher');
 const startGarageWatcher = require('./utils/garageCron');
 const { initLottoCron } = require('./utils/lotto');
+const startAiHistoryWatcher = require('./utils/aiHistoryWatcher');
 const { start } = require('repl');
 
 fs.writeFileSync('./terminal.log', '', 'utf-8');
@@ -35,6 +36,7 @@ initLottoCron(client);
 startConvoyNotificationWatcher(client);
 startNismaraPlusWatcher(client);
 startGarageWatcher(client);
+startAiHistoryWatcher(client);
 
 process.on('unhandledRejection', console.error);
 process.on('uncaughtException', console.error);
