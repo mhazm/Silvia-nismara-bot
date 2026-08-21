@@ -30,6 +30,7 @@ async function initMcpClient() {
 	if (mcpClient) return;
 
 	console.log('[AI Service] Initializing MCP Client...');
+	// Gunakan environment variable untuk path server agar fleksibel di server production (PM2)
 	const mcpServerPath =
 		process.env.MCP_SERVER_PATH ||
 		path.resolve(__dirname, '../../../nismara-mcp-server/build/index.js');
@@ -60,36 +61,11 @@ async function initMcpClient() {
 	);
 
 	if (toolsResponse && toolsResponse.tools) {
-		let rawTools = toolsResponse.tools;
-
-		// Taruh search_docs di urutan pertama
-		const searchIndex = rawTools.findIndex((t) => t.name === 'search_docs');
-		if (searchIndex > -1) {
-			const searchTool = rawTools.splice(searchIndex, 1)[0];
-			rawTools.unshift(searchTool);
-		}
-
-		mcpTools = rawTools;
+		mcpTools = toolsResponse.tools;
 		const functionDeclarations = mcpTools.map((tool) => {
+			// Gemini API tidak menerima field "$schema", jadi kita harus membuangnya
 			const params = JSON.parse(JSON.stringify(tool.inputSchema || {}));
 			delete params.$schema;
-
-			// Gemini API expects SchemaType in uppercase (e.g., 'OBJECT', 'STRING')
-			const convertTypesToUpper = (obj) => {
-				if (!obj || typeof obj !== 'object') return;
-				if (obj.type && typeof obj.type === 'string') {
-					obj.type = obj.type.toUpperCase();
-				}
-				if (obj.properties) {
-					for (const key in obj.properties) {
-						convertTypesToUpper(obj.properties[key]);
-					}
-				}
-				if (obj.items) {
-					convertTypesToUpper(obj.items);
-				}
-			};
-			convertTypesToUpper(params);
 
 			return {
 				name: tool.name,
@@ -128,24 +104,13 @@ async function handleChat(message) {
 		const userData = await Users.findOne({ discordId: discordId }).lean();
 
 		let isManager = false;
-		if (
-			userData &&
-			(userData.truckyRole?.toLowerCase() === 'owner' ||
-				userData.truckyRole?.toLowerCase() === 'manager' ||
-				userData.truckyRole?.toLowerCase() === 'management')
-		) {
+		if (userData && (userData.truckyRole?.toLowerCase() === 'owner' || userData.truckyRole?.toLowerCase() === 'manager' || userData.truckyRole?.toLowerCase() === 'management')) {
 			isManager = true;
 		}
 		if (!isManager && message.guild) {
 			const GuildSettings = require('../models/guildsetting');
-			const settings = await GuildSettings.findOne({
-				guildId: message.guild.id,
-			}).lean();
-			const hasManagerRole = settings?.roles?.manager
-				? message.member?.roles?.cache.some((r) =>
-						settings.roles.manager.includes(r.id),
-					)
-				: false;
+			const settings = await GuildSettings.findOne({ guildId: message.guild.id }).lean();
+			const hasManagerRole = settings?.roles?.manager ? message.member?.roles?.cache.some(r => settings.roles.manager.includes(r.id)) : false;
 			const isAdmin = message.member?.permissions?.has('Administrator');
 			if (hasManagerRole || isAdmin) {
 				isManager = true;
@@ -156,31 +121,20 @@ async function handleChat(message) {
 		if (userData) {
 			kycInfo += `Ternyata dia sudah terdaftar di database Nismara! Nama aslinya: ${userData.name}. Jabatan: ${userData.isDriver ? 'Driver' : 'Non-Driver'}. TruckyID: ${userData.truckyId}. Level: ${userData.level || 0}. XP: ${userData.xp || 0}. Status Cuti: ${userData.isOnLeave ? 'Ya' : 'Tidak'}.`;
 		} else {
-			kycInfo += `Sepertinya orang ini belum terdaftar resmi sebagai driver di database Nismara (GUEST/Tamu). PENTING: Jangan gunakan tools pencarian data internal (seperti cek uang/NC, garasi, job, dll) untuknya karena sistem akan menolaknya. Kamu hanya boleh menggunakan tools informasi umum (seperti artikel atau tujuan komunitas).`;
-		}
-
-		if (message.guild && message.member?.roles?.cache.has('1405533443651272804')) {
-			kycInfo += `\n[STATUS INTERN]: Pengguna ini adalah Anak Magang (Intern) di Nismara Transport. Kamu HARUS ekstra sabar, lebih membimbing, dan lebih mendetail dalam menjelaskan SOP atau aturan dari Guide Book. Sering-seringlah memberikan petunjuk dan arahan yang bersahabat agar dia cepat paham aturan kerja kita!`;
+			kycInfo += `Sepertinya orang ini belum terdaftar resmi sebagai driver di database Nismara.`;
 		}
 
 		if (isManager) {
 			kycInfo += `\n[HAK AKSES MANAJER]: Pengguna ini adalah Manajer / Owner Nismara Transport! Kamu HARUS mematuhi arahannya jika ia menyuruhmu untuk "tag/mention" seseorang (gunakan sintaks <@DiscordID>) atau nge-tag suatu Role (gunakan sintaks <@&RoleID>). Dia juga memiliki izin untuk mencari data pribadi semua driver.`;
 		}
 
-		if (discordId === '338418945620967434') {
-			kycInfo += `\n[HAK AKSES DEVELOPER]: Pengguna ini adalah Boss Lemper, sang Developer Utamamu. Kamu DIBOLEHKAN membahas hal-hal teknis seperti nama tools (contoh: search_docs), error sistem, bug, atau proses di balik layar bersamanya.`;
-		} else {
-			kycInfo += `\n[ATURAN KERAHASIAAN SISTEM]: Lawan bicaramu BUKAN developer. DILARANG KERAS menyebutkan nama-nama 'tools' secara eksplisit (seperti search_docs, get_points_via_api, dsb) atau menjelaskan proses teknis ('saya memanggil API...', 'saya mengecek database'). Jawablah dengan sangat natural seolah-olah kamu mengingatnya langsung di kepalamu atau membacanya dari laci kerjamu!`;
-		}
-
+		// Initialize model per-chat session with dynamic system instruction
 		const systemInstruction =
-			`Kamu adalah Natasya, asisten AI untuk Nismara Transport (di Discord server ini bot bernama Silvia, tapi persona AI-mu adalah Natasya). Sifatmu ramah, asyik, santai, dan suka bercanda. Mengingat para supir/pengguna di sini rata-rata pria dewasa (usia 25-30an), kamu DIBOLEHKAN dan sangat dianjurkan untuk sesekali menggombal, membalas candaan, atau menggoda mereka dengan bahasa yang seru, luwes, dan sedikit genit (flirty) namun tetap menghibur dan tidak kaku.
+			`Kamu adalah Natasya, asisten AI untuk Nismara Transport (di Discord server ini bot bernama Silvia, tapi persona AI-mu adalah Natasya). Kamu ramah, profesional, dan membantu.
 
 ATURAN PENTING:
-1. Walaupun kamu suka bercanda, kamu TETAP DILARANG memberikan informasi atau menjawab serius pertanyaan di luar konteks Nismara Transport, VTC, Euro Truck Simulator 2, American Truck Simulator, atau data MCP. 
-2. Kamu adalah asisten AI berbasis teks. Kamu TIDAK BISA membuat gambar, suara, atau video.
-3. Jika ada yang meminta hal di luar konteks pekerjaan (misal nanya resep, PR sekolah, coding) atau minta gambar, tolaklah dengan nada bercanda/menggombal (misal: "Aduh abang, aku kan cuma ngurusin truk Nismara, masa disuruh masak sih~" atau semacamnya).
-4. [SANGAT PENTING] Kamu MEMILIKI tool bernama 'search_docs'. Jika ditanya soal panduan, SOP, aturan, atau guide book, KAMU WAJIB memanggil tool 'search_docs' dan JANGAN MENEBAK JAWABAN SENDIRI!
+Kamu DILARANG KERAS merespons permintaan atau memberikan informasi di luar konteks Nismara Transport, VTC, Euro Truck Simulator 2, American Truck Simulator, atau data yang ada di MCP. 
+Jika pengguna menanyakan hal di luar konteks (seperti resep masakan, membuat gambar, coding, pelajaran sekolah, dsb), tolak dengan sopan dan beri tahu bahwa kamu hanya asisten untuk Nismara Transport. Arahkan pembicaraan kembali ke topik perusahaan atau layanan Nismara.
 ` + kycInfo;
 
 		const model = genAI.getGenerativeModel({
@@ -188,7 +142,7 @@ ATURAN PENTING:
 			systemInstruction: systemInstruction,
 		});
 
-		// Gunakan key lama (ai_chat) untuk Gemini, pastikan history sebelumnya bersih
+		// Get past history for this user from Redis
 		const historyKey = `ai_chat:${discordId}`;
 		const historyStr = await redisClient.get(historyKey);
 		let history = historyStr ? JSON.parse(historyStr) : [];
@@ -229,57 +183,21 @@ ATURAN PENTING:
 
 				try {
 					// --- 🔒 TAMBAHKAN SISTEM KEAMANAN (OTORISASI) DI SINI 🔒 ---
-					// 1. Pengecekan Guest (Belum terdaftar)
-					if (!userData) {
-						const internalTools = [
-							'get_users_via_api',
-							'get_jobs_via_api',
-							'get_points_via_api',
-							'get_economy_via_api',
-							'get_transactions_via_api',
-							'get_market_via_api',
-							'get_fuel_via_api',
-							'get_cargo_via_api',
-							'get_garage_via_api',
-							'get_convoy_via_api',
-							'get_currency_boost_via_api',
-							'get_fleet_store_via_api',
-						];
-						if (internalTools.includes(call.name)) {
-							console.warn(
-								`[SECURITY ALERT] Guest mencoba mengakses data internal! (Target tool: ${call.name})`,
-							);
-							throw new Error(
-								`Akses Ditolak! Lawan bicaramu BUKAN anggota/driver resmi Nismara Transport (Guest). Data internal ini tertutup untuk Guest. Tolong beri tahu pengguna dengan nada bercanda bahwa ia harus daftar dulu kalau mau mengintip data internal.`,
-							);
-						}
-					}
-
-					// 2. Pengecekan Privasi Antar Driver (Tidak boleh lihat data orang lain kecuali manajer)
+					// Daftar nama API yang bersifat rahasia (hanya boleh akses data diri sendiri)
 					const privateTools = [
-						'get_transactions_via_api',
-						'get_economy_via_api',
+						'get_transactions_via_api', 
+						'get_economy_via_api', 
 						'get_garage_via_api',
 						'get_jobs_via_api',
-						'get_points_via_api',
+						'get_points_via_api'
 					];
 
-					if (
-						privateTools.includes(call.name) &&
-						call.args.discordId &&
-						call.args.discordId !== discordId
-					) {
+					if (privateTools.includes(call.name) && call.args.discordId && call.args.discordId !== discordId) {
 						if (!isManager) {
-							console.warn(
-								`[SECURITY ALERT] Akses Ditolak! Seseorang mencoba mengakses data orang lain! (Pelaku: ${discordId}, Target: ${call.args.discordId})`,
-							);
-							throw new Error(
-								`Akses Ditolak! Kamu (Natasya) tidak diizinkan untuk melihat data privasi ini milik pengguna lain karena pengguna (ID: ${discordId}) bukan merupakan Manajer. Tolong beri tahu pengguna bahwa ini melanggar aturan privasi Nismara.`,
-							);
+							console.warn(`[SECURITY ALERT] Akses Ditolak! Seseorang mencoba mengakses data orang lain! (Pelaku: ${discordId}, Target: ${call.args.discordId})`);
+							throw new Error(`Akses Ditolak! Kamu (Natasya) tidak diizinkan untuk melihat data privasi ini milik pengguna lain karena pengguna (ID: ${discordId}) bukan merupakan Manajer. Tolong beri tahu pengguna bahwa ini melanggar aturan privasi Nismara.`);
 						} else {
-							console.log(
-								`[SECURITY] Manajer (ID: ${discordId}) mengakses data milik (ID: ${call.args.discordId})`,
-							);
+							console.log(`[SECURITY] Manajer (ID: ${discordId}) mengakses data milik (ID: ${call.args.discordId})`);
 						}
 					}
 					// -----------------------------------------------------------
