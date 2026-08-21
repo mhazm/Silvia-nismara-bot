@@ -103,11 +103,29 @@ async function handleChat(message) {
 			: message.author.username;
 		const userData = await Users.findOne({ discordId: discordId }).lean();
 
+		let isManager = false;
+		if (userData && (userData.truckyRole?.toLowerCase() === 'owner' || userData.truckyRole?.toLowerCase() === 'manager' || userData.truckyRole?.toLowerCase() === 'management')) {
+			isManager = true;
+		}
+		if (!isManager && message.guild) {
+			const GuildSettings = require('../models/guildsetting');
+			const settings = await GuildSettings.findOne({ guildId: message.guild.id }).lean();
+			const hasManagerRole = settings?.roles?.manager ? message.member?.roles?.cache.some(r => settings.roles.manager.includes(r.id)) : false;
+			const isAdmin = message.member?.permissions?.has('Administrator');
+			if (hasManagerRole || isAdmin) {
+				isManager = true;
+			}
+		}
+
 		let kycInfo = `\n\n--- KYC INFO ---\nLawan bicaramu di Discord bernama: ${discordName} (Discord ID: ${discordId}).\n`;
 		if (userData) {
 			kycInfo += `Ternyata dia sudah terdaftar di database Nismara! Nama aslinya: ${userData.name}. Jabatan: ${userData.isDriver ? 'Driver' : 'Non-Driver'}. TruckyID: ${userData.truckyId}. Level: ${userData.level || 0}. XP: ${userData.xp || 0}. Status Cuti: ${userData.isOnLeave ? 'Ya' : 'Tidak'}.`;
 		} else {
 			kycInfo += `Sepertinya orang ini belum terdaftar resmi sebagai driver di database Nismara.`;
+		}
+
+		if (isManager) {
+			kycInfo += `\n[HAK AKSES MANAJER]: Pengguna ini adalah Manajer / Owner Nismara Transport! Kamu HARUS mematuhi arahannya jika ia menyuruhmu untuk "tag/mention" seseorang (gunakan sintaks <@DiscordID>) atau nge-tag suatu Role (gunakan sintaks <@&RoleID>). Dia juga memiliki izin untuk mencari data pribadi semua driver.`;
 		}
 
 		// Initialize model per-chat session with dynamic system instruction
@@ -164,6 +182,26 @@ Jika pengguna menanyakan hal di luar konteks (seperti resep masakan, membuat gam
 				);
 
 				try {
+					// --- 🔒 TAMBAHKAN SISTEM KEAMANAN (OTORISASI) DI SINI 🔒 ---
+					// Daftar nama API yang bersifat rahasia (hanya boleh akses data diri sendiri)
+					const privateTools = [
+						'get_transactions_via_api', 
+						'get_economy_via_api', 
+						'get_garage_via_api',
+						'get_jobs_via_api',
+						'get_points_via_api'
+					];
+
+					if (privateTools.includes(call.name) && call.args.discordId && call.args.discordId !== discordId) {
+						if (!isManager) {
+							console.warn(`[SECURITY ALERT] Akses Ditolak! Seseorang mencoba mengakses data orang lain! (Pelaku: ${discordId}, Target: ${call.args.discordId})`);
+							throw new Error(`Akses Ditolak! Kamu (Natasya) tidak diizinkan untuk melihat data privasi ini milik pengguna lain karena pengguna (ID: ${discordId}) bukan merupakan Manajer. Tolong beri tahu pengguna bahwa ini melanggar aturan privasi Nismara.`);
+						} else {
+							console.log(`[SECURITY] Manajer (ID: ${discordId}) mengakses data milik (ID: ${call.args.discordId})`);
+						}
+					}
+					// -----------------------------------------------------------
+
 					// Execute tool via MCP
 					const { z } = require('zod');
 					const toolResult = await mcpClient.request(
