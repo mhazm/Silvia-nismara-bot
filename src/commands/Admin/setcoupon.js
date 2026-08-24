@@ -51,6 +51,12 @@ module.exports = new ApplicationCommand({
 				type: ApplicationCommandOptionType.String,
 				required: false,
 			},
+			{
+				name: 'start_in_days',
+				description: 'Mulai dalam X hari (Opsional untuk penjadwalan)',
+				type: ApplicationCommandOptionType.Integer,
+				required: false,
+			},
 		],
 	},
 	options: {
@@ -71,6 +77,7 @@ module.exports = new ApplicationCommand({
 			const minAmount = interaction.options.getInteger('min_amount');
 			const maxAmount = interaction.options.getInteger('max_amount');
 			const durationDays = interaction.options.getInteger('durasi');
+			const startInDays = interaction.options.getInteger('start_in_days') || 0;
 			const guildId = interaction.guild.id;
 			const userId = interaction.user.id;
 
@@ -97,9 +104,12 @@ module.exports = new ApplicationCommand({
 				);
 			}
 
+			const startDate = new Date(Date.now() + startInDays * 24 * 60 * 60 * 1000);
 			const endDate = new Date(
-				Date.now() + durationDays * 24 * 60 * 60 * 1000,
+				startDate.getTime() + durationDays * 24 * 60 * 60 * 1000,
 			);
+			const isScheduled = startInDays > 0;
+			const isActive = !isScheduled;
 
 			// 🔹 Tutup kontrak lama di history (jika masih aktif)
 			const lastHistory = await CouponHistory.findOne({
@@ -130,7 +140,12 @@ module.exports = new ApplicationCommand({
 				existing.imageUrl = companyImage;
 				existing.setBy = userId;
 				existing.setAt = new Date();
-				((existing.validUntil = endDate), await existing.save());
+				existing.startDate = startDate;
+				existing.endDate = endDate;
+				existing.durationDays = durationDays;
+				existing.isActive = isActive;
+				existing.isScheduled = isScheduled;
+				await existing.save();
 			} else {
 				await Coupon.create({
 					guildId: guildId,
@@ -141,7 +156,11 @@ module.exports = new ApplicationCommand({
 					imageUrl: companyImage,
 					setBy: userId,
 					setAt: new Date(),
-					validUntil: endDate,
+					startDate: startDate,
+					endDate: endDate,
+					durationDays: durationDays,
+					isActive: isActive,
+					isScheduled: isScheduled,
 				});
 			}
 
@@ -180,7 +199,7 @@ module.exports = new ApplicationCommand({
 					},
 					{
 						name: '🕒 Tanggal Mulai',
-						value: `<t:${Math.floor(Date.now() / 1000)}:F>`,
+						value: `<t:${Math.floor(startDate.getTime() / 1000)}:F>`,
 					},
 					{
 						name: '📅 Tanggal Berakhir',
@@ -204,11 +223,19 @@ module.exports = new ApplicationCommand({
 
 			if (companyImage) embed.setImage(companyImage);
 
+			// Hanya kirim notifikasi pembuatan jika tidak dijadwalkan, 
+			// atau tetap kirim untuk memberi tahu admin. (Kirim pemberitahuan internal bahwa ini dibuat).
+			// Kita bisa set footer berbeda jika scheduled.
+			if (isScheduled) {
+				embed.setFooter({
+					text: `Kupon terjadwal! Akan aktif secara otomatis dalam ${startInDays} hari.`,
+				});
+			}
+
 			await notifyChannel?.send({ embeds: [embed] });
 
 			return interaction.editReply({
-				content:
-					'✅ Kode Kupon berhasil dibuat & dicatat dalam riwayat!',
+				content: isScheduled ? '✅ Kode Kupon berhasil dijadwalkan!' : '✅ Kode Kupon berhasil dibuat & dicatat dalam riwayat!',
 				embeds: [embed],
 			});
 		} catch (err) {

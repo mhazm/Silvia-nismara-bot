@@ -21,8 +21,10 @@ const ncEventSchema = new mongoose.Schema(
 			},
 		],
 		isActive: { type: Boolean, default: true },
+		isScheduled: { type: Boolean, default: false },
 		setBy: { type: String, required: true },
 		setAt: { type: Date, default: Date.now },
+		startDate: { type: Date, default: Date.now }, // event mulai kapan
 		endAt: { type: Date }, // event berakhir kapan
 	},
 	{ timestamps: true },

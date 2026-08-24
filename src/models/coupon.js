@@ -24,6 +24,7 @@ const couponSchema = new mongoose.Schema(
 		endDate: { type: Date }, // expiration date for the coupon
 		durationDays: { type: Number }, // durasi kupon
 		isActive: { type: Boolean, default: true }, // status aktif kupon
+		isScheduled: { type: Boolean, default: false }, // status kupon terjadwal
 		setBy: { type: String }, // siapa yang set
 		driverClaims: [couponClaimedSchema], // array untuk menyimpan klaim driver
 	},

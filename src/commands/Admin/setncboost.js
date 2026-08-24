@@ -56,6 +56,12 @@ module.exports = new ApplicationCommand({
 				required: true,
 				description: 'URL gambar event NC Boost',
 			},
+			{
+				name: 'start_in_days',
+				description: 'Mulai dalam X hari (Opsional untuk penjadwalan)',
+				type: ApplicationCommandOptionType.Integer,
+				required: false,
+			},
 		],
 	},
 	options: {
@@ -76,6 +82,7 @@ module.exports = new ApplicationCommand({
 		const durationStr = interaction.options.getString('duration');
 		const nameEvent = interaction.options.getString('nama_event');
 		const imageUrl = interaction.options.getString('image_url');
+		const startInDays = interaction.options.getInteger('start_in_days') || 0;
 
 		if (!/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i.test(imageUrl)) {
 			return interaction.editReply(
@@ -90,8 +97,10 @@ module.exports = new ApplicationCommand({
 			);
 		}
 
-		const startDate = new Date();
+		const startDate = new Date(Date.now() + startInDays * 24 * 60 * 60 * 1000);
 		const endAt = new Date(startDate.getTime() + durationMs);
+		const isScheduled = startInDays > 0;
+		const isActive = !isScheduled;
 
 		// 🔹 Replace / buat event aktif
 		await NCEvent.findOneAndUpdate(
@@ -102,21 +111,26 @@ module.exports = new ApplicationCommand({
 				nameEvent,
 				imageUrl,
 				setBy: userId,
-				setAt: startDate,
+				setAt: new Date(),
+				startDate,
 				endAt,
+				isActive,
+				isScheduled,
 			},
 			{ upsert: true },
 		);
 
-		// 🔹 Simpan history (START EVENT)
-		await NCEventHistory.create({
-			guildId,
-			multiplier,
-			nameEvent,
-			imageUrl,
-			setBy: userId,
-			startDate,
-		});
+		// 🔹 Simpan history (START EVENT) hanya jika langsung aktif
+		if (!isScheduled) {
+			await NCEventHistory.create({
+				guildId,
+				multiplier,
+				nameEvent,
+				imageUrl,
+				setBy: userId,
+				startDate,
+			});
+		}
 
 		const settings = await GuildSettings.findOne({ guildId });
 		const channelNotif = interaction.guild.channels.cache.get(
@@ -125,26 +139,24 @@ module.exports = new ApplicationCommand({
 
 		if (channelNotif) {
 			const embed = new EmbedBuilder()
-				.setTitle(`🔔 ${nameEvent} NC Boost Event Dimulai!`)
+				.setTitle(isScheduled ? `⏳ ${nameEvent} NC Boost Event Terjadwal!` : `🔔 ${nameEvent} NC Boost Event Dimulai!`)
 				.setColor('Yellow')
 				.setDescription(
-					`Event **${nameEvent}** dengan multiplier **x${multiplier}** telah dimulai.\n\n` +
-						`🚚 Ayo lakukan pengiriman sebanyak mungkin!\n\n` +
-						`🕒 Berakhir: <t:${Math.floor(
-							endAt.getTime() / 1000,
-						)}:F> (<t:${Math.floor(endAt.getTime() / 1000)}:R>)`,
+					isScheduled
+						? `Event **${nameEvent}** dengan multiplier **x${multiplier}** telah dijadwalkan dan akan aktif otomatis pada <t:${Math.floor(startDate.getTime() / 1000)}:F>.`
+						: `Event **${nameEvent}** dengan multiplier **x${multiplier}** telah dimulai.\n\n🚚 Ayo lakukan pengiriman sebanyak mungkin!\n\n🕒 Berakhir: <t:${Math.floor(endAt.getTime() / 1000)}:F> (<t:${Math.floor(endAt.getTime() / 1000)}:R>)`
 				)
 				.setImage(imageUrl)
 				.setTimestamp()
-				.setFooter({ text: 'Nismara Transport - Event Notification' });
+				.setFooter({ text: isScheduled ? `Akan aktif dalam ${startInDays} hari` : 'Nismara Transport - Event Notification' });
 
 			await channelNotif.send({ embeds: [embed] });
 		}
 
 		return interaction.editReply(
-			`✅ **${nameEvent} NC Boost Event Aktif!**\n` +
-				`Multiplier: **x${multiplier}**\n` +
-				`Berakhir: <t:${Math.floor(endAt.getTime() / 1000)}:F>`,
+			isScheduled
+				? `✅ **${nameEvent} NC Boost Event Dijadwalkan!**\nMultiplier: **x${multiplier}**\nMulai: <t:${Math.floor(startDate.getTime() / 1000)}:F>`
+				: `✅ **${nameEvent} NC Boost Event Aktif!**\nMultiplier: **x${multiplier}**\nBerakhir: <t:${Math.floor(endAt.getTime() / 1000)}:F>`
 		);
 	},
 }).toJSON();

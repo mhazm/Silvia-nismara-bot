@@ -9,6 +9,63 @@ module.exports = async function startCouponWatcher(client) {
         try {
             const now = new Date();
 
+            // 🔹 Cari event yang dijadwalkan dan waktunya sudah mulai
+            const scheduledEvents = await Coupon.find({
+                startDate: { $lte: now },
+                isScheduled: true,
+            });
+
+            for (const ev of scheduledEvents) {
+                const guild = client.guilds.cache.get(ev.guildId);
+                if (!guild) {
+                    ev.isScheduled = false; 
+                    await ev.save();
+                    continue;
+                }
+
+                ev.isActive = true;
+                ev.isScheduled = false;
+                await ev.save();
+
+                const settings = await GuildSettings.findOne({
+                    guildId: ev.guildId,
+                });
+
+                if (settings?.eventNotifyChannel) {
+                    const channel = guild.channels.cache.get(
+                        settings.eventNotifyChannel,
+                    );
+
+                    if (channel) {
+                        const embed = new EmbedBuilder()
+                            .setTitle(`🎉 Special Coupon ${ev.nameCoupon} Resmi Dimulai!`)
+                            .setColor('Green')
+                            .setDescription(
+                                `Kupon Terjadwal **${ev.nameCoupon}** sekarang sudah aktif dan bisa diklaim! (Kode: ||${ev.codeCoupon}||)`
+                            )
+                            .addFields(
+                                {
+                                    name: '💰 Reward',
+                                    value: `${ev.minAmount || 0} - ${ev.maxAmount || 0} ${ev.type === 'PENALTY_TICKET' ? 'Tiket' : 'N¢'}`,
+                                },
+                                {
+                                    name: '📅 Berakhir Pada',
+                                    value: `<t:${Math.floor(ev.endDate.getTime() / 1000)}:F>`,
+                                }
+                            )
+                            .setFooter({
+                                text: `Ketik /claim ${ev.codeCoupon} untuk mengklaim kupon ini!`,
+                            })
+                            .setTimestamp();
+                        
+                        if (ev.imageUrl) embed.setImage(ev.imageUrl);
+
+                        await channel.send({ embeds: [embed] });
+                    }
+                }
+                console.log(`✅ Scheduled Coupon ${ev.nameCoupon} started for guild ${ev.guildId}`);
+            }
+
             // Cari event yang sudah berakhir
             const events = await Coupon.find({
                 endDate: { $lte: now },

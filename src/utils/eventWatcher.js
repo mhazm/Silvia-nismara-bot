@@ -9,6 +9,63 @@ module.exports = async function startEventWatcher(client) {
 		try {
 			const now = new Date();
 
+			// 🔹 Cari event yang dijadwalkan dan waktunya sudah mulai
+			const scheduledEvents = await NCEvent.find({
+				startDate: { $lte: now },
+				isScheduled: true,
+			});
+
+			for (const ev of scheduledEvents) {
+				const guild = client.guilds.cache.get(ev.guildId);
+				if (!guild) {
+					ev.isScheduled = false;
+					await ev.save();
+					continue;
+				}
+
+				ev.isActive = true;
+				ev.isScheduled = false;
+				await ev.save();
+
+				// Simpan history (START EVENT) karena saat command setncboost dijadwalkan, history belum dibuat
+				const NCEventHistory = require('../models/nceventHistory');
+				await NCEventHistory.create({
+					guildId: ev.guildId,
+					multiplier: ev.multiplier,
+					nameEvent: ev.nameEvent,
+					imageUrl: ev.imageUrl,
+					setBy: ev.setBy,
+					startDate: ev.startDate,
+				});
+
+				const settings = await GuildSettings.findOne({
+					guildId: ev.guildId,
+				});
+
+				if (settings?.eventNotifyChannel) {
+					const channel = guild.channels.cache.get(
+						settings.eventNotifyChannel,
+					);
+
+					if (channel) {
+						const embed = new EmbedBuilder()
+							.setTitle(`🔔 ${ev.nameEvent} NC Boost Event Resmi Dimulai!`)
+							.setColor('Yellow')
+							.setDescription(
+								`Event Terjadwal **${ev.nameEvent}** dengan multiplier **x${ev.multiplier}** sekarang telah dimulai!\n\n` +
+								`🚚 Ayo lakukan pengiriman sebanyak mungkin!\n\n` +
+								`🕒 Berakhir: <t:${Math.floor(ev.endAt.getTime() / 1000)}:F> (<t:${Math.floor(ev.endAt.getTime() / 1000)}:R>)`
+							)
+							.setTimestamp()
+							.setFooter({ text: 'Nismara Transport - Event Notification' });
+
+						if (ev.imageUrl) embed.setImage(ev.imageUrl);
+						await channel.send({ embeds: [embed] });
+					}
+				}
+				console.log(`✅ Scheduled NC Boost Event ${ev.nameEvent} started for guild ${ev.guildId}`);
+			}
+
 			// Cari event yang sudah berakhir
 			const events = await NCEvent.find({
 				endAt: { $lte: now },

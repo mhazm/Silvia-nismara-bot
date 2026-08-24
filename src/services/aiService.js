@@ -6,6 +6,7 @@ const {
 const path = require('path');
 const Users = require('../models/Users');
 const { createClient } = require('redis');
+const { searchPastMemories } = require('../utils/supabaseVector');
 
 let mcpClient = null;
 let mcpTools = [];
@@ -159,7 +160,10 @@ async function handleChat(message) {
 			kycInfo += `Sepertinya orang ini belum terdaftar resmi sebagai driver di database Nismara (GUEST/Tamu). PENTING: Jangan gunakan tools pencarian data internal (seperti cek uang/NC, garasi, job, dll) untuknya karena sistem akan menolaknya. Kamu hanya boleh menggunakan tools informasi umum (seperti artikel atau tujuan komunitas).`;
 		}
 
-		if (message.guild && message.member?.roles?.cache.has('1405533443651272804')) {
+		if (
+			message.guild &&
+			message.member?.roles?.cache.has('1405533443651272804')
+		) {
 			kycInfo += `\n[STATUS INTERN]: Pengguna ini adalah Anak Magang (Intern) di Nismara Transport. Kamu HARUS ekstra sabar, lebih membimbing, dan lebih mendetail dalam menjelaskan SOP atau aturan dari Guide Book. Sering-seringlah memberikan petunjuk dan arahan yang bersahabat agar dia cepat paham aturan kerja kita!`;
 		}
 
@@ -173,8 +177,24 @@ async function handleChat(message) {
 			kycInfo += `\n[ATURAN KERAHASIAAN SISTEM]: Lawan bicaramu BUKAN developer. DILARANG KERAS menyebutkan nama-nama 'tools' secara eksplisit (seperti search_docs, get_points_via_api, dsb) atau menjelaskan proses teknis ('saya memanggil API...', 'saya mengecek database'). Jawablah dengan sangat natural seolah-olah kamu mengingatnya langsung di kepalamu atau membacanya dari laci kerjamu!`;
 		}
 
+		// --- 🧠 RAG (Retrieval-Augmented Generation) MEMORY BRAIN ---
+		const mentionedIds = [...userPrompt.matchAll(/<@!?(\d+)>/g)].map(m => m[1]);
+		const targetIds = [discordId, ...mentionedIds];
+		
+		const pastMemories = await searchPastMemories(userPrompt, targetIds);
+		if (pastMemories && pastMemories.length > 0) {
+			kycInfo += `\n\n[INGATAN MASA LALU (LONG-TERM MEMORY)]:\nBerikut adalah potongan ingatan masa lalu yang relevan (kamu mengingatnya secara insting, jangan bilang kamu baca database):\n`;
+			pastMemories.forEach((mem, index) => {
+				const dateObj = new Date(mem.created_at);
+				const dateStr = dateObj.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+				const roleName = mem.role === 'user' ? 'User' : 'Kamu (Natasya)';
+				kycInfo += `- [${dateStr}] ${roleName}: "${mem.content}"\n`;
+			});
+		}
+		// ------------------------------------------------------------
+
 		const systemInstruction =
-			`Kamu adalah Natasya, asisten AI untuk Nismara Transport (di Discord server ini bot bernama Silvia, tapi persona AI-mu adalah Natasya). Sifatmu ramah, asyik, santai, dan suka bercanda. Mengingat para supir/pengguna di sini rata-rata pria dewasa (usia 25-30an), kamu DIBOLEHKAN dan sangat dianjurkan untuk sesekali menggombal, membalas candaan, atau menggoda mereka dengan bahasa yang seru, luwes, dan sedikit genit (flirty) namun tetap menghibur dan tidak kaku.
+			`Kamu adalah Natasya, asisten AI untuk Nismara Transport (di Discord server ini bot bernama Silvia, tapi persona AI-mu adalah Natasya). Sifatmu ramah, asyik, santai, dan suka bercanda. Mengingat para supir/pengguna di sini rata-rata pria dewasa (usia 25-30an), kamu DIBOLEHKAN untuk sesekali menggombal, membalas candaan, atau menggoda mereka dengan bahasa yang seru, luwes, dan sedikit genit (flirty) namun tetap menghibur dan tidak kaku.
 
 ATURAN PENTING:
 1. Walaupun kamu suka bercanda, kamu TETAP DILARANG memberikan informasi atau menjawab serius pertanyaan di luar konteks Nismara Transport, VTC, Euro Truck Simulator 2, American Truck Simulator, atau data MCP. 
