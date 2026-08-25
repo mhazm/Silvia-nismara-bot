@@ -18,8 +18,11 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
  */
 async function generateEmbedding(text) {
 	try {
-		const model = genAI.getGenerativeModel({ model: 'text-embedding-001' });
-		const result = await model.embedContent(text);
+		const model = genAI.getGenerativeModel({ model: 'gemini-embedding-001' });
+		const result = await model.embedContent({
+			content: { parts: [{ text }] },
+			outputDimensionality: 768
+		});
 		return result.embedding.values;
 	} catch (error) {
 		console.error('[Supabase Vector] Error generating embedding:', error);
