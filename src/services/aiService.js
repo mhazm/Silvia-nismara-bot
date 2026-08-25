@@ -213,9 +213,14 @@ ATURAN PENTING:
 		const historyStr = await redisClient.get(historyKey);
 		let history = historyStr ? JSON.parse(historyStr) : [];
 
-		// Create initial contents array with history appended
+		// Create initial contents array with history appended (bersihkan custom properties seperti isSyncedToVector)
+		const cleanedHistory = history.map(msg => ({
+			role: msg.role,
+			parts: msg.parts
+		}));
+
 		const contents = [
-			...history,
+			...cleanedHistory,
 			{ role: 'user', parts: [{ text: userPrompt }] },
 		];
 
