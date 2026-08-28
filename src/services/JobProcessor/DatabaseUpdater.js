@@ -95,6 +95,16 @@ async function updateDatabase(context, client) {
 			reason: `Nismara Plus bonus - Job #${jobId}`,
 		});
 	}
+	if (reward.truckersmp > 0) {
+		historyRecords.push({
+			guildId,
+			userId: discordId,
+			amount: reward.truckersmp,
+			managerId: client.user.id,
+			type: 'earn',
+			reason: `TruckersMP bonus - Job #${jobId}`,
+		});
+	}
 	if (cost.rent > 0) {
 		historyRecords.push({
 			guildId,
@@ -145,6 +155,16 @@ async function updateDatabase(context, client) {
 			reason: `Vehicle Maintenance Penalty - Job #${jobId}`,
 		});
 	}
+	if (reward.taxAmount > 0) {
+		historyRecords.push({
+			guildId,
+			userId: discordId,
+			amount: reward.taxAmount,
+			managerId: client.user.id,
+			type: 'spend',
+			reason: `Income Tax (${(reward.taxRate * 100).toFixed(0)}%) - Job #${jobId}`,
+		});
+	}
 
 	if (historyRecords.length > 0) {
 		await CurrencyHistory.insertMany(historyRecords);
@@ -171,6 +191,10 @@ async function updateDatabase(context, client) {
 				marketFuelPricePerL: marketFuelPricePerL,
 				nc: reward,
 				ncCost: cost,
+				tax: {
+					rate: reward.taxRate || 0,
+					amount: reward.taxAmount || 0,
+				},
 				fines_events: finesEvents,
 				discount: discount,
 				xp: xp,

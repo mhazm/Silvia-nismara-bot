@@ -14,6 +14,9 @@ const usersSchema = new mongoose.Schema({
 	isBestEmployeeETS2: { type: Boolean, default: false },
 	isBestEmployeeATS: { type: Boolean, default: false },
 	truckyRole: { type: String, default: null },
+	truckersmpId: { type: String, required: false },
+	steamId: { type: String, required: false },
+	isTmpDriver: { type: Boolean, default: false },
 
 	insurance: {
 		status: { type: Boolean, default: false },

@@ -7,7 +7,17 @@ const NCEvent = require('../../models/ncevent');
  * Calculates all rewards (NC) for the completed job.
  */
 async function calculateRewards(context, client, message) {
-	const { job, userData, discordId, guildId, jobId, gameId, gameName, driverJob, cost } = context;
+	const {
+		job,
+		userData,
+		discordId,
+		guildId,
+		jobId,
+		gameId,
+		gameName,
+		driverJob,
+		cost,
+	} = context;
 	const km = Number(job.driven_distance_km || 0);
 	const now = new Date();
 
@@ -16,15 +26,22 @@ async function calculateRewards(context, client, message) {
 		game_id: job.game_id,
 	});
 
-	const cargoPrice = driverJob.lockedCargoPrice || cargoData?.price_per_km_with_market_change || 1;
+	const cargoPrice =
+		driverJob.lockedCargoPrice ||
+		cargoData?.price_per_km_with_market_change ||
+		1;
 	const cargoRevenue = Math.round(km * cargoPrice);
 
-	console.log(`📦 Cargo Data: ${cargoData?.name} | Price per km: ${cargoPrice} | Cargo Revenue: ${cargoRevenue}`);
+	console.log(
+		`📦 Cargo Data: ${cargoData?.name} | Price per km: ${cargoPrice} | Cargo Revenue: ${cargoRevenue}`,
+	);
 
 	const rewardKm = Math.round(km * 0.2);
 	const rewardJob = Math.round(rewardKm + cargoRevenue);
 
-	console.log(`💰 Reward Job: +${rewardJob} | Reward Km: ${rewardKm} | Cargo Revenue: ${cargoRevenue}`);
+	console.log(
+		`💰 Reward Job: +${rewardJob} | Reward Km: ${rewardKm} | Cargo Revenue: ${cargoRevenue}`,
+	);
 
 	// 1. SPECIAL CONTRACT CHECK
 	const activeSC = await jobHistory.findOne({
@@ -58,7 +75,9 @@ async function calculateRewards(context, client, message) {
 			completedAt: new Date(),
 		});
 
-		console.log(`⭐ Special Contract ${gameName} Detected → +${context.reward.special} NC`);
+		console.log(
+			`⭐ Special Contract ${gameName} Detected → +${context.reward.special} NC`,
+		);
 	}
 
 	// 2. BASE NC
@@ -75,7 +94,7 @@ async function calculateRewards(context, client, message) {
 	if (isHardcore) {
 		let bonusMultiplier = 0;
 		const rating = job.delivery_rating_details?.rating ?? 0;
-		
+
 		if (rating >= 4) {
 			bonusMultiplier = 1.0;
 		} else if (rating >= 3) {
@@ -94,33 +113,44 @@ async function calculateRewards(context, client, message) {
 					isHardcore: true,
 					hardcoreRating: rating,
 				},
-			}
+			},
 		);
-		console.log(`🔥 Hardcore Bonus (Rating: ${rating}, x${bonusMultiplier}): +${context.reward.hardcore}`);
+		console.log(
+			`🔥 Hardcore Bonus (Rating: ${rating}, x${bonusMultiplier}): +${context.reward.hardcore}`,
+		);
 	}
 
 	// 4. EVENT MULTIPLIER
-	const activeEvent = await NCEvent.findOne({ 
+	const activeEvent = await NCEvent.findOne({
 		guildId,
 		isActive: true,
-		endAt: { $gt: new Date() }
+		endAt: { $gt: new Date() },
 	});
 
 	if (activeEvent) {
 		let isEligible = true;
 
 		// Check Game ID
-		if (activeEvent.gameId !== 'all' && activeEvent.gameId !== String(gameId)) {
+		if (
+			activeEvent.gameId !== 'all' &&
+			activeEvent.gameId !== String(gameId)
+		) {
 			isEligible = false;
 		}
 
 		// Check Type (Singleplayer vs TruckersMP)
 		if (isEligible && activeEvent.type !== 'all') {
 			const gameMode = driverJob.gameMode || 'sp';
-			
-			if (activeEvent.type === 'TruckersMP' && gameMode !== 'truckersmp') {
+
+			if (
+				activeEvent.type === 'TruckersMP' &&
+				gameMode !== 'truckersmp'
+			) {
 				isEligible = false;
-			} else if (activeEvent.type === 'Singleplayer' && gameMode !== 'sp') {
+			} else if (
+				activeEvent.type === 'Singleplayer' &&
+				gameMode !== 'sp'
+			) {
 				isEligible = false;
 			}
 		}
@@ -129,26 +159,29 @@ async function calculateRewards(context, client, message) {
 			context.isActiveEvent = true;
 			const eventMultiplier = activeEvent.multiplier;
 			context.reward.event = Math.round(rewardJob * eventMultiplier);
-			
+
 			// 🔹 Tambahkan / Update Partisipan di Database
 			const participantIndex = activeEvent.participants.findIndex(
-				(p) => p.discordId === discordId
+				(p) => p.discordId === discordId,
 			);
 
 			if (participantIndex !== -1) {
-				activeEvent.participants[participantIndex].totalEarned += context.reward.event;
+				activeEvent.participants[participantIndex].totalEarned +=
+					context.reward.event;
 			} else {
 				activeEvent.participants.push({
 					discordId: discordId,
 					totalEarned: context.reward.event,
 				});
 			}
-			
+
 			await activeEvent.save();
 
 			console.log(`🎉 Event NC Boost aktif → x${eventMultiplier}`);
 		} else {
-			console.log('NC event active but job not eligible (Game/Type mismatch).');
+			console.log(
+				'NC event active but job not eligible (Game/Type mismatch).',
+			);
 		}
 	} else {
 		console.log('No NC event active.');
@@ -170,14 +203,20 @@ async function calculateRewards(context, client, message) {
 		if (isBoosting) {
 			context.isDriverBooster = true;
 			context.reward.booster = Math.round(rewardJob * 0.3 + bonusBooster);
-			console.log(`💎 Server Booster Detected → +${context.reward.booster} NC`);
+			console.log(
+				`💎 Server Booster Detected → +${context.reward.booster} NC`,
+			);
 		}
 	} catch (error) {
 		console.log(`⚠️ Gagal mengecek status booster untuk user ${discordId}`);
 	}
 
 	// 6. NISMARA PLUS BONUS
-	if (userData && userData.nismaraplus?.status && userData.nismaraplus.expiredAt > now) {
+	if (
+		userData &&
+		userData.nismaraplus?.status &&
+		userData.nismaraplus.expiredAt > now
+	) {
 		let bonusPlus = 0;
 		if (km > 5000) bonusPlus = 600;
 		else if (km > 4000) bonusPlus = 500;
@@ -188,21 +227,63 @@ async function calculateRewards(context, client, message) {
 
 		context.reward.nismaraplus = Math.round(rewardJob * 0.3 + bonusPlus);
 		context.isDriverNismaraPlus = true; // Just setting it loosely
-		console.log(`💜 Nismara Plus Detected → +${context.reward.nismaraplus} NC`);
+		console.log(
+			`💜 Nismara Plus Detected → +${context.reward.nismaraplus} NC`,
+		);
 	}
 
-	// 7. TOTAL NC CALCULATION
-	context.reward.total = Math.round(
+	// 7. BONUS TRUCKERSMP PLAYERS
+	context.reward.truckersmp = 0;
+	if (
+		userData &&
+		userData.isTmpDriver &&
+		job.game_mode?.toLowerCase() === 'truckersmp'
+	) {
+		const vehicleDmg = job.vehicle_damage ?? 0;
+		const trailerDmg = job.trailers_damage ?? 0;
+		const cargoDmg = job.cargo_damage ?? 0;
+
+		let bonusMultiplier = 0.5; // Default 50%
+		if (vehicleDmg < 11 && trailerDmg < 8 && cargoDmg < 6) {
+			bonusMultiplier = 1.0; // 100%
+		}
+
+		context.reward.truckersmp = Math.round(rewardJob * bonusMultiplier);
+		context.isDriverTruckersmp = true;
+		console.log(
+			`🌐 TruckersMP Bonus Detected (${bonusMultiplier * 100}%) → +${context.reward.truckersmp} NC`,
+		);
+	}
+
+	// 8. TOTAL NC CALCULATION & TAXES
+	const subTotal = Math.round(
 		context.reward.base +
 			context.reward.special +
 			context.reward.hardcore +
 			context.reward.event +
+			context.reward.truckersmp,
+	);
+
+	let taxRate = 0.05;
+	if (subTotal >= 30000) taxRate = 0.2;
+	else if (subTotal >= 20000) taxRate = 0.15;
+	else if (subTotal >= 10000) taxRate = 0.1;
+	else if (subTotal >= 5000) taxRate = 0.07;
+
+	context.reward.taxRate = taxRate;
+	context.reward.taxAmount = Math.round(subTotal * taxRate);
+	const afterTax = subTotal - context.reward.taxAmount;
+
+	context.reward.total = Math.round(
+		afterTax +
 			context.reward.booster +
-			context.reward.nismaraplus
+			context.reward.nismaraplus,
 	);
 
 	if (context.isFleetMaintenancePenalty) {
-		context.maintenancePenaltyAmount = Math.round(context.reward.total * 0.5);
+		context.maintenancePenaltyAmount = Math.round(
+			context.reward.total * 0.5,
+		);
 		context.reward.total -= context.maintenancePenaltyAmount;
 	}
 
@@ -219,6 +300,7 @@ async function calculateRewards(context, client, message) {
 	console.log(`Special  : ${context.reward.special}`);
 	console.log(`Hardcore : ${context.reward.hardcore}`);
 	console.log(`Event    : ${context.reward.event}`);
+	console.log(`TruckersMP  : ${context.reward.truckersmp}`);
 	console.log(`Booster  : ${context.reward.booster}`);
 	console.log(`Nismara Plus  : ${context.reward.nismaraplus}`);
 	console.log(`TOTAL EARNED : ${context.reward.total}`);
@@ -233,6 +315,12 @@ async function calculateRewards(context, client, message) {
 	console.log(`Fines    : ${cost.fines}`);
 	console.log(`TOTAL COST : ${cost.total}`);
 	console.log(`--------------------------------------`);
+	console.log(
+		`Maintenance Penalty : ${context.maintenancePenaltyAmount || 0}`,
+	);
+	console.log(
+		`Tax (${(context.reward.taxRate * 100).toFixed(0)}%) : ${context.reward.taxAmount}`,
+	);
 	console.log(`TOTAL NC : ${rewardTotal}`);
 	console.log(`--------------------------------------`);
 

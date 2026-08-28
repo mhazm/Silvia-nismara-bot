@@ -96,6 +96,7 @@ const jobHistorySchema = new mongoose.Schema(
 			event: Number,
 			booster: Number,
 			nismaraplus: Number,
+			truckersmp: Number,
 			total: Number,
 		},
 
@@ -105,6 +106,11 @@ const jobHistorySchema = new mongoose.Schema(
 			fuel: Number,
 			fines: Number,
 			total: Number,
+		},
+
+		tax: {
+			rate: Number,
+			amount: Number,
 		},
 
 		fines_events: [
