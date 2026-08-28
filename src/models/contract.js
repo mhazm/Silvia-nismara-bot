@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-
 const contributorSchema = new mongoose.Schema(
 	{
 		driverId: { type: String, required: true },
@@ -9,7 +8,7 @@ const contributorSchema = new mongoose.Schema(
 		totalDistance: { type: Number, default: 0 },
 		totalMass: { type: Number, default: 0 },
 	},
-	{ _id: false }
+	{ _id: false },
 );
 
 const contractSchema = new mongoose.Schema(
@@ -27,6 +26,9 @@ const contractSchema = new mongoose.Schema(
 		setBy: { type: String }, // siapa yang set
 		setAt: { type: Date, default: Date.now },
 		endAt: { type: Date }, // optional end date for the contract
+		isActive: { type: Boolean, default: true },
+		isScheduled: { type: Boolean, default: false },
+		startDate: { type: Date, default: Date.now },
 
 		// Leaderboard
 		contributors: [contributorSchema],
@@ -34,7 +36,10 @@ const contractSchema = new mongoose.Schema(
 	{ timestamps: true },
 );
 
-contractSchema.index({ guildId: 1, gameId: 1 }, { unique: true }); // pastikan companyName unik per guild
+contractSchema.index(
+	{ guildId: 1, gameId: 1 },
+	{ unique: true, partialFilterExpression: { isActive: true } }
+); // pastikan companyName unik per guild HANYA untuk contract yg aktif
 
 module.exports =
 	mongoose.models.Contract || mongoose.model('Contract', contractSchema);

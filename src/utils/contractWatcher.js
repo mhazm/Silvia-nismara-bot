@@ -1,5 +1,4 @@
 const GuildSettings = require('../models/guildsetting');
-const ContractHistory = require('../models/ContractHistorys');
 const Contract = require('../models/contract');
 const { EmbedBuilder } = require('discord.js');
 
@@ -10,41 +9,19 @@ module.exports = async function startContractWatcher(client) {
 		try {
 			const now = new Date();
 
-			// Cari event yang sudah berakhir
+			// Cari event yang sudah berakhir dan masih aktif
 			const events = await Contract.find({
 				endAt: { $lte: now },
+				isActive: true,
 			});
 
 			if (!events.length) return;
 
 			for (const ev of events) {
-				const durationDays = ev.endAt
-					? Math.ceil((ev.endAt - ev.setAt) / (1000 * 60 * 60 * 24))
-					: 'N/A';
-
-				await ContractHistory.create({
-					guildId: ev.guildId,
-					gameId: ev.gameId,
-					contractName: ev.contractName,
-					companyName: ev.companyName,
-
-					startDate: ev.setAt,
-					endDate: ev.endAt,
-					closedAt: new Date(),
-					setBy: ev.setBy,
-					durationDays: durationDays,
-
-					completedContracts: ev.completedContracts,
-					totalNCEarned: ev.totalNCEarned,
-					totalDistance: ev.totalDistance,
-					totalMass: ev.totalMass,
-
-					contributors: ev.contributors || [],
-				});
-
 				const guild = client.guilds.cache.get(ev.guildId);
 				if (!guild) {
-					await Contract.deleteOne({ _id: ev._id });
+					ev.isActive = false;
+					await ev.save();
 					continue;
 				}
 
@@ -93,7 +70,7 @@ module.exports = async function startContractWatcher(client) {
 							)
 							.setColor('Red')
 							.setDescription(
-								`Special Contract **${ev.contractName}** untuk ${mapGame(gameId)} yang berjalan sejak <t:${Math.floor(ev.setAt / 1000)}:F> telah resmi berakhir.`,
+								`Special Contract **${ev.contractName}** untuk ${mapGame(gameId)} yang berjalan sejak <t:${Math.floor(new Date(ev.setAt).getTime() / 1000)}:F> telah resmi berakhir.`,
 							)
 							.addFields(
 								{
@@ -116,11 +93,12 @@ module.exports = async function startContractWatcher(client) {
 					}
 				}
 
-				// 🔹 Hapus event aktif
-				await Contract.deleteOne({ _id: ev._id });
+				// 🔹 Nonaktifkan event
+				ev.isActive = false;
+				await ev.save();
 
 				console.log(
-					`✅ Special Contract ${ev.companyName} (${mapGame(ev.gameId)}) expired & history closed for guild ${ev.guildId}`,
+					`✅ Special Contract ${ev.companyName} (${mapGame(ev.gameId)}) expired & deactivated for guild ${ev.guildId}`,
 				);
 			}
 		} catch (err) {
