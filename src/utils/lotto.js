@@ -87,6 +87,7 @@ async function drawLotto(client) {
 					userId: discordId,
 					guildId: GUILD_ID,
 					amount: amount,
+					managerId: client?.user?.id || '1450366734447149056',
 					type: 'earn',
 					reason: `Lotto Winner (${tierName}) - Period #${activePeriod.periodNumber}`,
 				});
