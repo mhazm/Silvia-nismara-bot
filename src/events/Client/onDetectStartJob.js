@@ -343,6 +343,7 @@ module.exports = new Event({
 			const contract = await Contract.findOne({
 				guildId,
 				gameId: gameId,
+				isActive: true,
 			});
 
 			let isSpecialContract = false;
