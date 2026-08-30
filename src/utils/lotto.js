@@ -113,6 +113,42 @@ async function drawLotto(client) {
 			accumulatedPrize: rolloverPrize,
 		});
 
+		// Helper untuk memformat field pemenang dengan info jumlah tiket per user
+		const formatWinnerTier = (tierWinners, prizePerTicket, tierNumber, matchCount) => {
+			if (!tierWinners || tierWinners.length === 0) {
+				return {
+					name: `${tierNumber === 1 ? '🥇' : tierNumber === 2 ? '🥈' : '🥉'} Tier ${tierNumber} (${matchCount} Cocok) - 0 Pemenang`,
+					value: '*Tidak ada pemenang. Hadiah Rollover!*',
+				};
+			}
+
+			const userTicketCounts = {};
+			for (const t of tierWinners) {
+				userTicketCounts[t.discordId] =
+					(userTicketCounts[t.discordId] || 0) + 1;
+			}
+
+			const uniqueUsers = Object.keys(userTicketCounts).length;
+			const ticketCount = tierWinners.length;
+			const headerName =
+				uniqueUsers === ticketCount
+					? `${tierNumber === 1 ? '🥇' : tierNumber === 2 ? '🥈' : '🥉'} Tier ${tierNumber} (${matchCount} Cocok) - ${ticketCount} Pemenang`
+					: `${tierNumber === 1 ? '🥇' : tierNumber === 2 ? '🥈' : '🥉'} Tier ${tierNumber} (${matchCount} Cocok) - ${ticketCount} Tiket Menang (${uniqueUsers} Pemenang)`;
+
+			const winnerMentions = Object.entries(userTicketCounts)
+				.map(([discordId, count]) =>
+					count > 1
+						? `<@${discordId}> (**${count}x Tiket** ➔ ${(prizePerTicket * count).toLocaleString()} N¢)`
+						: `<@${discordId}>`,
+				)
+				.join(', ');
+
+			return {
+				name: headerName,
+				value: `Hadiah per tiket: **${prizePerTicket.toLocaleString()} N¢**\n${winnerMentions}`,
+			};
+		};
+
 		// 9. Generate Embed untuk pengumuman
 		const embed = new EmbedBuilder()
 			.setTitle(
@@ -123,27 +159,9 @@ async function drawLotto(client) {
 				`**WINNING NUMBERS:**\n# \` ${winningNumbers.join(' - ')} \`\n\nTotal Prize Pool: **${totalPrizePool.toLocaleString()} N¢**\nRollover ke Periode Depan: **${rolloverPrize.toLocaleString()} N¢**`,
 			)
 			.addFields(
-				{
-					name: `🥇 Tier 1 (4 Cocok) - ${winners.tier1.length} Pemenang`,
-					value:
-						winners.tier1.length > 0
-							? `Masing-masing mendapatkan **${t1Prize.toLocaleString()} N¢**\n${[...new Set(winners.tier1.map((t) => `<@${t.discordId}>`))].join(', ')}`
-							: '*Tidak ada pemenang. Hadiah Rollover!*',
-				},
-				{
-					name: `🥈 Tier 2 (3 Cocok) - ${winners.tier2.length} Pemenang`,
-					value:
-						winners.tier2.length > 0
-							? `Masing-masing mendapatkan **${t2Prize.toLocaleString()} N¢**\n${[...new Set(winners.tier2.map((t) => `<@${t.discordId}>`))].join(', ')}`
-							: '*Tidak ada pemenang. Hadiah Rollover!*',
-				},
-				{
-					name: `🥉 Tier 3 (2 Cocok) - ${winners.tier3.length} Pemenang`,
-					value:
-						winners.tier3.length > 0
-							? `Masing-masing mendapatkan **${t3Prize.toLocaleString()} N¢**\n${[...new Set(winners.tier3.map((t) => `<@${t.discordId}>`))].join(', ')}`
-							: '*Tidak ada pemenang. Hadiah Rollover!*',
-				},
+				formatWinnerTier(winners.tier1, t1Prize, 1, 4),
+				formatWinnerTier(winners.tier2, t2Prize, 2, 3),
+				formatWinnerTier(winners.tier3, t3Prize, 3, 2),
 			)
 			.setFooter({
 				text: `Selamat kepada para pemenang! Periode #${activePeriod.periodNumber + 1} sudah dibuka.`,
