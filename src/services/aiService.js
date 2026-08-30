@@ -1,4 +1,8 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const {
+	GoogleGenerativeAI,
+	HarmCategory,
+	HarmBlockThreshold,
+} = require('@google/generative-ai');
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const {
 	StdioClientTransport,
@@ -7,6 +11,25 @@ const path = require('path');
 const Users = require('../models/Users');
 const { createClient } = require('redis');
 const { searchPastMemories } = require('../utils/supabaseVector');
+
+const safetySettings = [
+	{
+		category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+		threshold: HarmBlockThreshold.BLOCK_NONE,
+	},
+	{
+		category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+		threshold: HarmBlockThreshold.BLOCK_NONE,
+	},
+	{
+		category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+		threshold: HarmBlockThreshold.BLOCK_NONE,
+	},
+	{
+		category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+		threshold: HarmBlockThreshold.BLOCK_NONE,
+	},
+];
 
 let mcpClient = null;
 let mcpTools = [];
@@ -206,6 +229,7 @@ ATURAN PENTING:
 		const model = genAI.getGenerativeModel({
 			model: 'gemini-3.5-flash-lite',
 			systemInstruction: systemInstruction,
+			safetySettings: safetySettings,
 		});
 
 		// Gunakan key lama (ai_chat) untuk Gemini, pastikan history sebelumnya bersih
@@ -214,9 +238,9 @@ ATURAN PENTING:
 		let history = historyStr ? JSON.parse(historyStr) : [];
 
 		// Create initial contents array with history appended (bersihkan custom properties seperti isSyncedToVector)
-		const cleanedHistory = history.map(msg => ({
+		const cleanedHistory = history.map((msg) => ({
 			role: msg.role,
-			parts: msg.parts
+			parts: msg.parts,
 		}));
 
 		const contents = [
@@ -233,18 +257,34 @@ ATURAN PENTING:
 		let result = await model.generateContent(requestOptions);
 		let response = result.response;
 
+		const getSafeFunctionCalls = (res) => {
+			try {
+				return res?.functionCalls ? res.functionCalls() : null;
+			} catch (e) {
+				return null;
+			}
+		};
+
+		const getSafeText = (res) => {
+			try {
+				return res?.text ? res.text() : null;
+			} catch (e) {
+				return null;
+			}
+		};
+
 		// Handle tool calls if Gemini decides to use them (bisa berkali-kali)
-		while (
-			response.functionCalls &&
-			response.functionCalls() &&
-			response.functionCalls().length > 0
-		) {
+		let calls = getSafeFunctionCalls(response);
+		let loopCount = 0;
+
+		while (calls && calls.length > 0 && loopCount < 5) {
+			loopCount++;
+
 			// Simpan respon model yang berisi functionCalls ke dalam riwayat
-			if (response.candidates && response.candidates[0].content) {
+			if (response.candidates && response.candidates[0]?.content) {
 				contents.push(response.candidates[0].content);
 			}
 
-			const calls = response.functionCalls();
 			const functionResponses = [];
 
 			for (const call of calls) {
@@ -354,9 +394,10 @@ ATURAN PENTING:
 			requestOptions.contents = contents;
 			result = await model.generateContent(requestOptions);
 			response = result.response;
+			calls = getSafeFunctionCalls(response);
 		}
 
-		const textResponse = response.text();
+		const textResponse = getSafeText(response);
 		if (textResponse) {
 			// Simpan ke riwayat jangka panjang (hanya teks interaksi, hilangkan tool calls untuk hemat token)
 			history.push({ role: 'user', parts: [{ text: userPrompt }] });
@@ -380,12 +421,41 @@ ATURAN PENTING:
 			} else {
 				await message.reply(textResponse);
 			}
+		} else {
+			// Check if response was blocked by safety policy
+			const candidate = response?.candidates?.[0];
+			if (
+				response?.promptFeedback?.blockReason ||
+				candidate?.finishReason === 'SAFETY' ||
+				candidate?.finishReason === 'PROHIBITED_CONTENT' ||
+				candidate?.finishReason === 'BLOCKLIST'
+			) {
+				console.warn(
+					`[AI Service] Response blocked by safety policy for user ${discordId}: ${response?.promptFeedback?.blockReason || candidate?.finishReason}`,
+				);
+				await message.reply(
+					'Aduh maaf ya, obrolan ini kena filter keamanan sistem AI Google nih~ Coba tanyakan dengan kata-kata lain ya! 😉',
+				);
+			} else {
+				await message.reply(
+					'Hmm, Natasya tidak mendapatkan respon yang tepat. Coba tanyakan lagi ya!',
+				);
+			}
 		}
 	} catch (error) {
 		console.error('[AI Service] Error handling chat:', error);
-		await message.reply(
-			'Maaf, terjadi kesalahan saat Natasya memproses permintaanmu.',
-		);
+		if (
+			error?.message?.includes('PROHIBITED_CONTENT') ||
+			error?.message?.includes('SAFETY')
+		) {
+			await message.reply(
+				'Aduh maaf ya, obrolan ini kena filter keamanan sistem AI Google nih~ Coba tanyakan dengan kata-kata lain ya! 😉',
+			);
+		} else {
+			await message.reply(
+				'Maaf, terjadi kesalahan saat Natasya memproses permintaanmu.',
+			);
+		}
 	}
 }
 

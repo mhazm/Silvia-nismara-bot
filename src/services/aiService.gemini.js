@@ -1,4 +1,8 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const {
+	GoogleGenerativeAI,
+	HarmCategory,
+	HarmBlockThreshold,
+} = require('@google/generative-ai');
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const {
 	StdioClientTransport,
@@ -6,6 +10,25 @@ const {
 const path = require('path');
 const Users = require('../models/Users');
 const { createClient } = require('redis');
+
+const safetySettings = [
+	{
+		category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+		threshold: HarmBlockThreshold.BLOCK_NONE,
+	},
+	{
+		category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+		threshold: HarmBlockThreshold.BLOCK_NONE,
+	},
+	{
+		category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+		threshold: HarmBlockThreshold.BLOCK_NONE,
+	},
+	{
+		category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+		threshold: HarmBlockThreshold.BLOCK_NONE,
+	},
+];
 
 let mcpClient = null;
 let mcpTools = [];
@@ -140,6 +163,7 @@ Jika pengguna menanyakan hal di luar konteks (seperti resep masakan, membuat gam
 		const model = genAI.getGenerativeModel({
 			model: 'gemini-3.5-flash-lite',
 			systemInstruction: systemInstruction,
+			safetySettings: safetySettings,
 		});
 
 		// Get past history for this user from Redis
@@ -162,18 +186,34 @@ Jika pengguna menanyakan hal di luar konteks (seperti resep masakan, membuat gam
 		let result = await model.generateContent(requestOptions);
 		let response = result.response;
 
+		const getSafeFunctionCalls = (res) => {
+			try {
+				return res?.functionCalls ? res.functionCalls() : null;
+			} catch (e) {
+				return null;
+			}
+		};
+
+		const getSafeText = (res) => {
+			try {
+				return res?.text ? res.text() : null;
+			} catch (e) {
+				return null;
+			}
+		};
+
 		// Handle tool calls if Gemini decides to use them (bisa berkali-kali)
-		while (
-			response.functionCalls &&
-			response.functionCalls() &&
-			response.functionCalls().length > 0
-		) {
+		let calls = getSafeFunctionCalls(response);
+		let loopCount = 0;
+
+		while (calls && calls.length > 0 && loopCount < 5) {
+			loopCount++;
+
 			// Simpan respon model yang berisi functionCalls ke dalam riwayat
-			if (response.candidates && response.candidates[0].content) {
+			if (response.candidates && response.candidates[0]?.content) {
 				contents.push(response.candidates[0].content);
 			}
 
-			const calls = response.functionCalls();
 			const functionResponses = [];
 
 			for (const call of calls) {
@@ -185,19 +225,29 @@ Jika pengguna menanyakan hal di luar konteks (seperti resep masakan, membuat gam
 					// --- 🔒 TAMBAHKAN SISTEM KEAMANAN (OTORISASI) DI SINI 🔒 ---
 					// Daftar nama API yang bersifat rahasia (hanya boleh akses data diri sendiri)
 					const privateTools = [
-						'get_transactions_via_api', 
-						'get_economy_via_api', 
+						'get_transactions_via_api',
+						'get_economy_via_api',
 						'get_garage_via_api',
 						'get_jobs_via_api',
-						'get_points_via_api'
+						'get_points_via_api',
 					];
 
-					if (privateTools.includes(call.name) && call.args.discordId && call.args.discordId !== discordId) {
+					if (
+						privateTools.includes(call.name) &&
+						call.args.discordId &&
+						call.args.discordId !== discordId
+					) {
 						if (!isManager) {
-							console.warn(`[SECURITY ALERT] Akses Ditolak! Seseorang mencoba mengakses data orang lain! (Pelaku: ${discordId}, Target: ${call.args.discordId})`);
-							throw new Error(`Akses Ditolak! Kamu (Natasya) tidak diizinkan untuk melihat data privasi ini milik pengguna lain karena pengguna (ID: ${discordId}) bukan merupakan Manajer. Tolong beri tahu pengguna bahwa ini melanggar aturan privasi Nismara.`);
+							console.warn(
+								`[SECURITY ALERT] Akses Ditolak! Seseorang mencoba mengakses data orang lain! (Pelaku: ${discordId}, Target: ${call.args.discordId})`,
+							);
+							throw new Error(
+								`Akses Ditolak! Kamu (Natasya) tidak diizinkan untuk melihat data privasi ini milik pengguna lain karena pengguna (ID: ${discordId}) bukan merupakan Manajer. Tolong beri tahu pengguna bahwa ini melanggar aturan privasi Nismara.`,
+							);
 						} else {
-							console.log(`[SECURITY] Manajer (ID: ${discordId}) mengakses data milik (ID: ${call.args.discordId})`);
+							console.log(
+								`[SECURITY] Manajer (ID: ${discordId}) mengakses data milik (ID: ${call.args.discordId})`,
+							);
 						}
 					}
 					// -----------------------------------------------------------
@@ -247,9 +297,10 @@ Jika pengguna menanyakan hal di luar konteks (seperti resep masakan, membuat gam
 			requestOptions.contents = contents;
 			result = await model.generateContent(requestOptions);
 			response = result.response;
+			calls = getSafeFunctionCalls(response);
 		}
 
-		const textResponse = response.text();
+		const textResponse = getSafeText(response);
 		if (textResponse) {
 			// Simpan ke riwayat jangka panjang (hanya teks interaksi, hilangkan tool calls untuk hemat token)
 			history.push({ role: 'user', parts: [{ text: userPrompt }] });
@@ -273,12 +324,41 @@ Jika pengguna menanyakan hal di luar konteks (seperti resep masakan, membuat gam
 			} else {
 				await message.reply(textResponse);
 			}
+		} else {
+			// Check if response was blocked by safety policy
+			const candidate = response?.candidates?.[0];
+			if (
+				response?.promptFeedback?.blockReason ||
+				candidate?.finishReason === 'SAFETY' ||
+				candidate?.finishReason === 'PROHIBITED_CONTENT' ||
+				candidate?.finishReason === 'BLOCKLIST'
+			) {
+				console.warn(
+					`[AI Service] Response blocked by safety policy for user ${discordId}: ${response?.promptFeedback?.blockReason || candidate?.finishReason}`,
+				);
+				await message.reply(
+					'Aduh maaf ya, obrolan ini kena filter keamanan sistem AI Google nih~ Coba tanyakan dengan kata-kata lain ya! 😉',
+				);
+			} else {
+				await message.reply(
+					'Hmm, Natasya tidak mendapatkan respon yang tepat. Coba tanyakan lagi ya!',
+				);
+			}
 		}
 	} catch (error) {
 		console.error('[AI Service] Error handling chat:', error);
-		await message.reply(
-			'Maaf, terjadi kesalahan saat Natasya memproses permintaanmu.',
-		);
+		if (
+			error?.message?.includes('PROHIBITED_CONTENT') ||
+			error?.message?.includes('SAFETY')
+		) {
+			await message.reply(
+				'Aduh maaf ya, obrolan ini kena filter keamanan sistem AI Google nih~ Coba tanyakan dengan kata-kata lain ya! 😉',
+			);
+		} else {
+			await message.reply(
+				'Maaf, terjadi kesalahan saat Natasya memproses permintaanmu.',
+			);
+		}
 	}
 }
 

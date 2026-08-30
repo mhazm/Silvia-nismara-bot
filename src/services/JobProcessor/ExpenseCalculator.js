@@ -300,11 +300,26 @@ async function calculateExpenses(context, client) {
 				.fetch(discordId)
 				.catch(() => null);
 			if (userToDM) {
-				await userToDM.send({ embeds: [fuelEmbed] });
+				await userToDM.send({ embeds: [fuelEmbed] }).catch((dmErr) => {
+					if (
+						dmErr.code === 50007 ||
+						dmErr.code === 50278 ||
+						dmErr.code === 50001
+					) {
+						console.warn(
+							`[Fuel Notification] Tidak dapat mengirim DM ke ${discordId} (DM dinonaktifkan / user tidak di server: Code ${dmErr.code})`,
+						);
+					} else {
+						console.error(
+							`[Fuel Notification] Gagal mengirim DM ke ${discordId}:`,
+							dmErr,
+						);
+					}
+				});
 			}
 		} catch (err) {
 			console.error(
-				`[Fuel Notification] Gagal mengirim DM ke ${discordId}`,
+				`[Fuel Notification] Terjadi kesalahan saat memproses laporan bahan bakar untuk ${discordId}:`,
 				err,
 			);
 		}

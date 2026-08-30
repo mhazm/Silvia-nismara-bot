@@ -64,10 +64,20 @@ module.exports = async function startCouponWatcher(client) {
 							embeds: [messageEmbed],
 						});
 					} catch (err) {
-						console.error(
-							`❌ Gagal mengirim DM ke user ${ev.userId}:`,
-							err,
-						);
+						if (
+							err.code === 50007 ||
+							err.code === 50278 ||
+							err.code === 50001
+						) {
+							console.warn(
+								`⚠️ Tidak dapat mengirim DM cuti ke user ${ev.userId} (DM ditutup/tidak ada mutual guild)`,
+							);
+						} else {
+							console.error(
+								`❌ Gagal mengirim DM ke user ${ev.userId}:`,
+								err,
+							);
+						}
 					}
 				}
 

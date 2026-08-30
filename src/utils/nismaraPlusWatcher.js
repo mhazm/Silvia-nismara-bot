@@ -35,10 +35,16 @@ module.exports = async function startNismaraPlusWatcher(client) {
 							await discordUser.send({ embeds: [embed] });
 						}
 					} catch (err) {
-						console.error(
-							`❌ Gagal mengirim DM expired ke user ${user.discordId}:`,
-							err,
-						);
+						if (err.code === 50007 || err.code === 50278 || err.code === 50001) {
+							console.warn(
+								`⚠️ Tidak dapat mengirim DM expired ke user ${user.discordId} (DM ditutup/tidak ada mutual guild)`,
+							);
+						} else {
+							console.error(
+								`❌ Gagal mengirim DM expired ke user ${user.discordId}:`,
+								err,
+							);
+						}
 					}
 				}
 				console.log(`✅ Nismara+ expired for user ${user.discordId}`);
@@ -79,10 +85,16 @@ module.exports = async function startNismaraPlusWatcher(client) {
 							await discordUser.send({ embeds: [embed] });
 						}
 					} catch (err) {
-						console.error(
-							`❌ Gagal mengirim DM pengingat 3 hari ke user ${user.discordId}:`,
-							err,
-						);
+						if (err.code === 50007 || err.code === 50278 || err.code === 50001) {
+							console.warn(
+								`⚠️ Tidak dapat mengirim DM pengingat 3 hari ke user ${user.discordId} (DM ditutup/tidak ada mutual guild)`,
+							);
+						} else {
+							console.error(
+								`❌ Gagal mengirim DM pengingat 3 hari ke user ${user.discordId}:`,
+								err,
+							);
+						}
 					}
 				}
 				console.log(

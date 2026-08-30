@@ -41,10 +41,20 @@ module.exports = async function startConvoyNotificationWatcher(client) {
 								await user.send({ embeds: [embed] });
 							}
 						} catch (dmErr) {
-							console.error(
-								`❌ Gagal mengirim DM ke user ${userId} untuk convoy ${convoy.convoyName}:`,
-								dmErr,
-							);
+							if (
+								dmErr.code === 50007 ||
+								dmErr.code === 50278 ||
+								dmErr.code === 50001
+							) {
+								console.warn(
+									`⚠️ Tidak dapat mengirim DM reminder konvoi ke user ${userId} (DM ditutup/tidak ada mutual guild)`,
+								);
+							} else {
+								console.error(
+									`❌ Gagal mengirim DM ke user ${userId} untuk convoy ${convoy.convoyName}:`,
+									dmErr,
+								);
+							}
 						}
 					}
 				}

@@ -92,10 +92,14 @@ module.exports = new Event({
 			// =========================
 			// NOTIFIKASI KE MANAJEMEN
 			// =========================
-			const logChannelId = settings.channels?.channelLog;
+			const logChannelId =
+				settings?.channelLog || settings?.memberWatcherChannel;
 			if (!logChannelId) return;
 
 			const notifyChannel =
+				(await message.guild.channels
+					.fetch(logChannelId)
+					.catch(() => null)) ||
 				message.guild.channels.cache.get(logChannelId);
 			if (!notifyChannel) return;
 

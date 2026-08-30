@@ -157,9 +157,57 @@ async function drawLotto(client) {
 	}
 }
 
+// Fungsi untuk mengecek dan memulihkan pengundian lotto yang terlewat (misal saat bot offline/restart)
+async function checkMissedLottoDraw(client) {
+	try {
+		const activePeriod = await LottoPeriod.findOne({ status: 'OPEN' });
+		if (!activePeriod) return;
+
+		const now = new Date();
+		const jakartaTime = new Date(
+			now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }),
+		);
+		const dayOfWeek = jakartaTime.getDay(); // 0 = Minggu
+		const hour = jakartaTime.getHours();
+
+		const startDate = new Date(
+			activePeriod.startDate || activePeriod.createdAt,
+		);
+		const diffDays =
+			(now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+
+		// Jika sudah hari Minggu >= 10:00 WIB dan durasi periode sudah >= 6 hari, atau hari lain tapi durasi >= 7 hari
+		const isOverdueSunday = dayOfWeek === 0 && hour >= 10 && diffDays >= 6;
+		const isOverduePastSunday = dayOfWeek !== 0 && diffDays >= 7;
+
+		if (isOverdueSunday || isOverduePastSunday) {
+			console.log(
+				`⚠️ [LOTTO RECOVERY] Ditemukan Lotto Period #${activePeriod.periodNumber} yang belum diundi (Aktif sejak: ${startDate.toISOString()}). Menjalankan pengundian otomatis sekarang...`,
+			);
+			const resultEmbed = await drawLotto(client);
+
+			if (resultEmbed && process.env.LOTTO_CHANNEL_ID) {
+				const channel = await client.channels
+					.fetch(process.env.LOTTO_CHANNEL_ID)
+					.catch(() => null);
+				if (channel) {
+					await channel.send({ embeds: [resultEmbed] });
+				}
+			}
+		}
+	} catch (err) {
+		console.error('❌ [LOTTO RECOVERY] Gagal memeriksa missed lotto draw:', err);
+	}
+}
+
 // Fungsi untuk menjadwalkan Cron Job
 function initLottoCron(client) {
-	// "0 10 * * 0" -> Menit 0, Jam 10, Tiap Hari Minggu (0 = Minggu)
+	// 1. Cek pengundian yang terlewat saat bot baru menyala
+	setTimeout(() => {
+		checkMissedLottoDraw(client);
+	}, 6000);
+
+	// 2. "0 10 * * 0" -> Menit 0, Jam 10, Tiap Hari Minggu (0 = Minggu)
 	cron.schedule(
 		'0 10 * * 0',
 		async () => {
@@ -169,9 +217,9 @@ function initLottoCron(client) {
 			const resultEmbed = await drawLotto(client);
 
 			if (resultEmbed && process.env.LOTTO_CHANNEL_ID) {
-				const channel = client.channels.cache.get(
-					process.env.LOTTO_CHANNEL_ID,
-				);
+				const channel = await client.channels
+					.fetch(process.env.LOTTO_CHANNEL_ID)
+					.catch(() => null);
 				if (channel) {
 					await channel.send({ embeds: [resultEmbed] });
 				}
@@ -184,4 +232,4 @@ function initLottoCron(client) {
 	console.log('🔄 Lotto Draw Watcher started (Every Sunday 10:00 WIB)...');
 }
 
-module.exports = { drawLotto, initLottoCron };
+module.exports = { drawLotto, initLottoCron, checkMissedLottoDraw };

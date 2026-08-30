@@ -45,6 +45,13 @@ const handleApplicationCommandOptions = async (
 	}
 
 	if (options.guildOwner) {
+		if (!interaction.guild) {
+			await interaction.reply({
+				content: '❌ Command ini hanya dapat digunakan di dalam server.',
+				ephemeral: true,
+			});
+			return false;
+		}
 		if (interaction.user.id !== interaction.guild.ownerId) {
 			await interaction.reply({
 				content: config.messages.NOT_GUILD_OWNER,
@@ -61,6 +68,13 @@ const handleApplicationCommandOptions = async (
 		Array.isArray(options.allowedRoles) &&
 		options.allowedRoles.length > 0
 	) {
+		if (!interaction.guild) {
+			await interaction.reply({
+				content: '❌ Command ini hanya dapat digunakan di dalam server.',
+				ephemeral: true,
+			});
+			return false;
+		}
 		const member =
 			interaction.member ??
 			(await interaction.guild.members.fetch(interaction.user.id));

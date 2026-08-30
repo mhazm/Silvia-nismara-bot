@@ -48,10 +48,20 @@ module.exports = async function startInsuranceWatcher(client) {
 							embeds: [messageEmbed],
 						});
 					} catch (err) {
-						console.error(
-							`❌ Gagal mengirim DM ke user ${ev.discordId}:`,
-							err,
-						);
+						if (
+							err.code === 50007 ||
+							err.code === 50278 ||
+							err.code === 50001
+						) {
+							console.warn(
+								`⚠️ Tidak dapat mengirim DM asuransi ke user ${ev.discordId} (DM ditutup/tidak ada mutual guild)`,
+							);
+						} else {
+							console.error(
+								`❌ Gagal mengirim DM ke user ${ev.discordId}:`,
+								err,
+							);
+						}
 					}
 				}
 
