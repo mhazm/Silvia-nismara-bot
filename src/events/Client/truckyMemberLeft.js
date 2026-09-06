@@ -1,9 +1,10 @@
 const { EmbedBuilder } = require('discord.js');
 const Event = require('../../structure/Event');
 const DriverLink = require('../../models/driverlink');
-const Currency = require('../../models/currency');
-const Point = require('../../models/points');
 const GuildSettings = require('../../models/guildsetting');
+
+// Set untuk mencegah eksekusi ganda saat Trucky mengirim 'Member Kicked' & 'Member Left' berurutan
+const processingTruckyIds = new Set();
 
 module.exports = new Event({
 	event: 'messageCreate',
@@ -26,9 +27,12 @@ module.exports = new Event({
 			const embed = message.embeds[0];
 
 			// =========================
-			// VALIDASI EMBED
+			// VALIDASI EMBED TITLE (FIXED LOGIC)
 			// =========================
-			if (!embed.title || !embed.title.includes('Member Left')) return;
+			if (!embed.title) return;
+			const isMemberLeft = embed.title.includes('Member Left');
+			const isMemberKicked = embed.title.includes('Member Kicked');
+			if (!isMemberLeft && !isMemberKicked) return;
 			if (!embed.url) return;
 
 			// =========================
@@ -38,7 +42,18 @@ module.exports = new Event({
 			if (!urlMatch) return;
 
 			const truckyId = Number(urlMatch[1]);
-			console.log(`🚪 Trucky Member Left | ID: ${truckyId}`);
+
+			// Cegah eksekusi ganda jika Trucky mengirim 'Member Kicked' dan 'Member Left' bersamaan
+			if (processingTruckyIds.has(truckyId)) {
+				console.log(
+					`⏳ Trucky ID ${truckyId} sedang/sudah diproses, mengabaikan webhook duplikat.`,
+				);
+				return;
+			}
+			processingTruckyIds.add(truckyId);
+			setTimeout(() => processingTruckyIds.delete(truckyId), 10000);
+			const actionType = isMemberKicked ? 'Kicked' : 'Left';
+			console.log(`🚪 Trucky Member ${actionType} | ID: ${truckyId}`);
 
 			// =========================
 			// CARI DRIVER (BERDASARKAN ID)
@@ -46,31 +61,55 @@ module.exports = new Event({
 			const driver = await DriverLink.findOne({ guildId, truckyId });
 
 			if (!driver) {
-				console.log(`⚠️ Driver Trucky ID ${truckyId} tidak ditemukan.`);
+				console.log(
+					`⚠️ Driver Trucky ID ${truckyId} tidak ditemukan di DriverLink.`,
+				);
 				return;
 			}
 
 			const userId = driver.userId;
 
-			// =========================
-			// HAPUS DATA DATABASE
-			// =========================
-			await Promise.all([
-				DriverLink.deleteOne({ _id: driver._id }),
-				Currency.deleteOne({ guildId, userId }),
-				Point.deleteOne({ guildId, userId }),
-			]);
+			// ============================================
+			// EKSEKUSI PURGE LENGKAP VIA WEB API
+			// ============================================
+			const webUrl =
+				process.env.WEB_URL || 'https://transport.nismara.web.id';
+			let purgeDetails = null;
 
-			console.log(`🗑️ Data driver ${driver.truckyName} dihapus:
-- DriverLink
-- Currency
-- Point`);
+			try {
+				const purgeResponse = await fetch(
+					`${webUrl}/api/manage/users/${userId}/purge`,
+					{
+						method: 'DELETE',
+						headers: {
+							Authorization: `Bearer ${process.env.NISMARA_SECRET_API}`,
+						},
+					},
+				);
+
+				if (purgeResponse.ok) {
+					purgeDetails = await purgeResponse.json();
+					console.log(
+						`✅ [PURGE SUCCESS] User ${userId} (${driver.truckyName}) berhasil di-purge total:`,
+						purgeDetails,
+					);
+				} else {
+					const errData = await purgeResponse
+						.json()
+						.catch(() => ({}));
+					console.error(
+						`❌ [PURGE FAILED] Status ${purgeResponse.status}:`,
+						errData,
+					);
+				}
+			} catch (apiErr) {
+				console.error('❌ Gagal menghubungi API Purge:', apiErr);
+			}
 
 			// =========================
 			// REMOVE ROLE DISCORD
 			// =========================
 			let removedRoles = [];
-
 			const member = await message.guild.members
 				.fetch(userId)
 				.catch(() => null);
@@ -107,15 +146,20 @@ module.exports = new Event({
 			const mentions = managerRoles.map((id) => `<@&${id}>`).join(' ');
 
 			const notifyEmbed = new EmbedBuilder()
-				.setTitle('🚪 Driver Keluar dari Trucky Company')
-				.setColor('Red')
+				.setTitle(
+					`🚪 Driver ${actionType === 'Kicked' ? 'Dikeluarkan (Kicked)' : 'Keluar (Left)'} dari Trucky`,
+				)
+				.setColor(actionType === 'Kicked' ? 'DarkRed' : 'Red')
 				.setDescription(
-					'Driver terdeteksi **keluar dari Trucky Company**.\nSemua data & role Discord telah dibersihkan.',
+					`Driver terdeteksi **${actionType === 'Kicked' ? 'dikeluarkan' : 'keluar'} dari Trucky Company**.\n` +
+						(purgeDetails?.success
+							? '✅ **Pembersihan Total:** Seluruh data akun, armada truk, slot garasi, transaksi, dan riwayat di web telah dimusnahkan tanpa sisa.'
+							: '⚠️ **Catatan:** Role Discord dicabut. Verifikasi pembersihan data web secara manual jika API tidak merespons.'),
 				)
 				.addFields(
 					{
 						name: '🚛 Trucky Name',
-						value: driver.truckyName,
+						value: driver.truckyName || '-',
 						inline: true,
 					},
 					{
@@ -129,8 +173,11 @@ module.exports = new Event({
 						inline: true,
 					},
 					{
-						name: '🗑️ Database Dihapus',
-						value: 'DriverLink, Currency, Point',
+						name: '🗑️ Status Purge Web',
+						value: purgeDetails?.success
+							? `Tuntas (${purgeDetails.ownedFleetsDeleted || 0} Armada dihapus, ${purgeDetails.mediaFilesDeleted || 0} File media R2 dibersihkan)`
+							: 'Gagal / Perlu cek manual',
+						inline: false,
 					},
 					{
 						name: '🧹 Role Dicabut',
@@ -139,7 +186,8 @@ module.exports = new Event({
 								? removedRoles
 										.map((id) => `<@&${id}>`)
 										.join(', ')
-								: 'Tidak ada',
+								: 'Tidak ada role driver aktif',
+						inline: false,
 					},
 				)
 				.setTimestamp();
