@@ -435,6 +435,8 @@ async function buildJobInvoice(
 		if (reward.special > 0) earningItems++;
 		if (reward.hardcore > 0) earningItems++;
 		if (reward.event > 0) earningItems++;
+		if (reward.userBoost > 0) earningItems++;
+		if (reward.truckersmp > 0) earningItems++;
 		if (reward.nismaraplus > 0) earningItems++;
 		if (reward.booster > 0) earningItems++;
 		if (discount && discount.insurance > 0) earningItems++;
@@ -495,6 +497,25 @@ async function buildJobInvoice(
 		if (reward.event > 0) {
 			doc.text(`Event Boost`, 55, incY);
 			doc.text(`${reward.event} N¢`, 225, incY, {
+				width: 55,
+				align: 'right',
+			});
+			incY += 15;
+		}
+		if (reward.userBoost > 0) {
+			const multStr = reward.userBoostMultiplier
+				? ` (x${reward.userBoostMultiplier})`
+				: '';
+			doc.text(`Personal NC Boost${multStr}`, 55, incY);
+			doc.text(`${reward.userBoost} N¢`, 225, incY, {
+				width: 55,
+				align: 'right',
+			});
+			incY += 15;
+		}
+		if (reward.truckersmp > 0) {
+			doc.text(`TruckersMP Driver`, 55, incY);
+			doc.text(`${reward.truckersmp} N¢`, 225, incY, {
 				width: 55,
 				align: 'right',
 			});

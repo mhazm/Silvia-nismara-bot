@@ -187,7 +187,30 @@ async function calculateRewards(context, client, message) {
 		console.log('No NC event active.');
 	}
 
-	// 5. BOOSTER NC BONUS
+	// 5. INDIVIDUAL USER NC BOOST
+	context.reward.userBoost = 0;
+	if (
+		userData &&
+		userData.ncBoost?.active &&
+		userData.ncBoost.expiredAt &&
+		userData.ncBoost.expiredAt > now
+	) {
+		const boostMultiplier = Number(userData.ncBoost.multiplier || 0);
+		if (boostMultiplier > 0) {
+			context.reward.userBoost = Math.round(rewardJob * boostMultiplier);
+			context.reward.userBoostMultiplier = boostMultiplier;
+			context.isDriverUserBoost = true;
+			const voucherName =
+				userData.ncBoost.voucherTitle ||
+				userData.ncBoost.voucherCode ||
+				'Personal Boost';
+			console.log(
+				`🚀 Individual NC Boost Detected (${voucherName}, x${boostMultiplier}) → +${context.reward.userBoost} NC`,
+			);
+		}
+	}
+
+	// 6. BOOSTER NC BONUS
 	try {
 		const member = await message.guild.members.fetch(discordId);
 		const isBoosting = member.premiumSinceTimestamp !== null;
@@ -211,7 +234,7 @@ async function calculateRewards(context, client, message) {
 		console.log(`⚠️ Gagal mengecek status booster untuk user ${discordId}`);
 	}
 
-	// 6. NISMARA PLUS BONUS
+	// 7. NISMARA PLUS BONUS
 	if (
 		userData &&
 		userData.nismaraplus?.status &&
@@ -232,7 +255,7 @@ async function calculateRewards(context, client, message) {
 		);
 	}
 
-	// 7. BONUS TRUCKERSMP PLAYERS
+	// 8. BONUS TRUCKERSMP PLAYERS
 	context.reward.truckersmp = 0;
 	if (
 		userData &&
@@ -255,12 +278,13 @@ async function calculateRewards(context, client, message) {
 		);
 	}
 
-	// 8. TOTAL NC CALCULATION & TAXES
+	// 9. TOTAL NC CALCULATION & TAXES
 	const subTotal = Math.round(
 		context.reward.base +
 			context.reward.special +
 			context.reward.hardcore +
 			context.reward.event +
+			(context.reward.userBoost || 0) +
 			context.reward.truckersmp,
 	);
 
@@ -300,6 +324,7 @@ async function calculateRewards(context, client, message) {
 	console.log(`Special  : ${context.reward.special}`);
 	console.log(`Hardcore : ${context.reward.hardcore}`);
 	console.log(`Event    : ${context.reward.event}`);
+	console.log(`User Boost : ${context.reward.userBoost}`);
 	console.log(`TruckersMP  : ${context.reward.truckersmp}`);
 	console.log(`Booster  : ${context.reward.booster}`);
 	console.log(`Nismara Plus  : ${context.reward.nismaraplus}`);

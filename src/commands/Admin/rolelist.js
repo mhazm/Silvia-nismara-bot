@@ -56,6 +56,13 @@ module.exports = new ApplicationCommand({
 								?.map((r) => `<@&${r}>`)
 								.join(', ') || '–',
 					},
+					{
+						name: 'Magang',
+						value:
+							settings.roles.magang
+								?.map((r) => `<@&${r}>`)
+								.join(', ') || '–',
+					},
 				)
 				.setColor('Blue');
 

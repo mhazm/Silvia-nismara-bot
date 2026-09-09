@@ -26,6 +26,19 @@ const {
 	updateDatabase,
 } = require('../../services/JobProcessor/DatabaseUpdater');
 
+/**
+ * Truncate embed field value safely to stay within Discord's 1024 character limit.
+ * @param {string} val
+ * @param {number} max
+ * @returns {string}
+ */
+function safeFieldValue(val, max = 1024) {
+	if (val === undefined || val === null || val === '') return '-';
+	const str = String(val).trim();
+	if (str.length <= max) return str;
+	return str.slice(0, max - 3) + '...';
+}
+
 module.exports = new Event({
 	event: 'messageCreate',
 	once: false,
@@ -99,6 +112,12 @@ module.exports = new Event({
 						ncField.push({
 							name: '🎉 Event NC Boost Earned',
 							value: `+${reward.event} N¢`,
+							inline: true,
+						});
+					if (reward.userBoost > 0)
+						ncField.push({
+							name: '🚀 Personal NC Boost',
+							value: `+${reward.userBoost} N¢`,
 							inline: true,
 						});
 					if (reward.booster > 0)
@@ -186,134 +205,166 @@ module.exports = new Event({
 				}
 			}
 
-			// --- USER REPORT EMBED ---
+			// --- USER REPORT EMBED FIELDS (GROUPED & PROTECTED < 1024 CHARS) ---
 			const fields = [];
-			if (penalty.total > 0) {
+
+			if (gameName) {
 				fields.push({
-					name: '⚖️ Penalty Rule Set',
-					value:
-						context.driverJob?.gameMode === 'truckersmp'
-							? 'TruckersMP Damage Rule'
-							: 'Standard Damage Rule',
+					name: '🌐 Game',
+					value: safeFieldValue(gameName),
+					inline: true,
 				});
 			}
-			if (gameName) fields.push({ name: '🌐 Game', value: gameName });
+
+			// 1. Rincian Pendapatan (Rewards)
+			const rewardLines = [];
 			if (reward.base > 0)
-				fields.push({
-					name: '🪙 Base NC Earned',
-					value: `+${reward.base} N¢`,
-					inline: true,
-				});
+				rewardLines.push(
+					`• Base NC: \`+${reward.base.toLocaleString('id-ID')} N¢\``,
+				);
+			if (reward.special > 0)
+				rewardLines.push(
+					`• Special Contract: \`+${reward.special.toLocaleString('id-ID')} N¢\``,
+				);
 			if (reward.hardcore > 0)
-				fields.push({
-					name: '🔥 Hardcore Bonus Earned',
-					value: `+${reward.hardcore} N¢`,
-					inline: true,
-				});
+				rewardLines.push(
+					`• Hardcore Bonus: \`+${reward.hardcore.toLocaleString('id-ID')} N¢\``,
+				);
 			if (reward.event > 0)
-				fields.push({
-					name: '🎉 Event N¢ Boost Earned',
-					value: `+${reward.event} N¢`,
-					inline: true,
-				});
+				rewardLines.push(
+					`• Event Boost: \`+${reward.event.toLocaleString('id-ID')} N¢\``,
+				);
+			if (reward.userBoost > 0) {
+				const boostMult = reward.userBoostMultiplier
+					? ` (x${reward.userBoostMultiplier})`
+					: '';
+				rewardLines.push(
+					`• Personal NC Boost${boostMult}: \`+${reward.userBoost.toLocaleString('id-ID')} N¢\``,
+				);
+			}
 			if (reward.booster > 0)
-				fields.push({
-					name: '💎 Server Booster Bonus Earned',
-					value: `+${reward.booster} N¢`,
-					inline: true,
-				});
+				rewardLines.push(
+					`• Server Booster: \`+${reward.booster.toLocaleString('id-ID')} N¢\``,
+				);
 			if (reward.nismaraplus > 0)
-				fields.push({
-					name: '💜 Nismara Plus Bonus Earned',
-					value: `+${reward.nismaraplus} N¢`,
-					inline: true,
-				});
+				rewardLines.push(
+					`• Nismara Plus: \`+${reward.nismaraplus.toLocaleString('id-ID')} N¢\``,
+				);
 			if (reward.truckersmp > 0)
-				fields.push({
-					name: '🌐 TruckersMP Bonus Earned',
-					value: `+${reward.truckersmp} N¢`,
-					inline: true,
-				});
+				rewardLines.push(
+					`• TruckersMP Bonus: \`+${reward.truckersmp.toLocaleString('id-ID')} N¢\``,
+				);
 			if (reward.taxAmount > 0) {
-				const taxPercent = (reward.taxRate * 100).toFixed(0); // mengubah 0.2 menjadi 20
+				const taxPercent = (reward.taxRate * 100).toFixed(0);
+				rewardLines.push(
+					`• Taxes (${taxPercent}%): \`-${reward.taxAmount.toLocaleString('id-ID')} N¢\``,
+				);
+			}
+			if (reward.total > 0) {
+				rewardLines.push(
+					`**Total NC:** \`+${reward.total.toLocaleString('id-ID')} N¢\``,
+				);
+			}
+
+			if (rewardLines.length > 0) {
 				fields.push({
-					name: `🏦 Taxes (${taxPercent}%)`,
-					value: `-${reward.taxAmount} N¢`,
+					name: '🪙 NC Earnings Breakdown',
+					value: safeFieldValue(rewardLines.join('\n')),
 					inline: true,
 				});
 			}
-			if (reward.total > 0)
-				fields.push({
-					name: '🪙 Total NC Earned',
-					value: `+${reward.total} N¢`,
-					inline: true,
-				});
+
+			// 2. Rincian Biaya (Expenses)
+			const costLines = [];
 			if (cost.rent > 0)
-				fields.push({
-					name: '🚗 Vehicle Rental Cost',
-					value: `-${cost.rent} N¢`,
-					inline: true,
-				});
+				costLines.push(
+					`• Rental Cost: \`-${cost.rent.toLocaleString('id-ID')} N¢\``,
+				);
 			if (cost.service > 0)
-				fields.push({
-					name: '🔧 Vehicle Service Cost',
-					value: `-${cost.service} N¢`,
-					inline: true,
-				});
+				costLines.push(
+					`• Service Cost: \`-${cost.service.toLocaleString('id-ID')} N¢\``,
+				);
 			if (cost.fuel > 0)
-				fields.push({
-					name: '⛽ Fuel Cost',
-					value: `-${cost.fuel} N¢`,
-					inline: true,
-				});
+				costLines.push(
+					`• Fuel Cost: \`-${cost.fuel.toLocaleString('id-ID')} N¢\``,
+				);
 			if (cost.fines > 0)
-				fields.push({
-					name: '👮 Traffic Fines',
-					value: `-${cost.fines} N¢`,
-					inline: true,
-				});
-			if (cost.total > 0)
-				fields.push({
-					name: '💰 Total Cost',
-					value: `-${cost.total} N¢`,
-					inline: true,
-				});
+				costLines.push(
+					`• Traffic Fines: \`-${cost.fines.toLocaleString('id-ID')} N¢\``,
+				);
 			if (maintenancePenaltyAmount > 0)
+				costLines.push(
+					`• Maintenance Penalty: \`-${maintenancePenaltyAmount.toLocaleString('id-ID')} N¢\``,
+				);
+			if (cost.total > 0) {
+				costLines.push(
+					`**Total Cost:** \`-${cost.total.toLocaleString('id-ID')} N¢\``,
+				);
+			}
+
+			if (costLines.length > 0) {
 				fields.push({
-					name: '🔧 Vehicle Maintenance Penalty',
-					value: `-${maintenancePenaltyAmount} N¢`,
+					name: '💸 Expenses Breakdown',
+					value: safeFieldValue(costLines.join('\n')),
+					inline: true,
+				});
+			}
+
+			// 3. Rincian Pelanggaran (Penalties)
+			if (penalty.total > 0) {
+				const penaltyLines = [];
+				const ruleSet =
+					context.driverJob?.gameMode === 'truckersmp'
+						? 'TruckersMP Damage Rule'
+						: 'Standard Damage Rule';
+				penaltyLines.push(`• Rule Set: *${ruleSet}*`);
+				if (penalty.vehicle > 0)
+					penaltyLines.push(
+						`• Vehicle Damage: ${job.vehicle_damage}% → **${penalty.vehicle}** pts`,
+					);
+				if (penalty.trailer > 0)
+					penaltyLines.push(
+						`• Trailer Damage: ${job.trailers_damage}% → **${penalty.trailer}** pts`,
+					);
+				if (penalty.cargo > 0)
+					penaltyLines.push(
+						`• Cargo Damage: ${job.cargo_damage}% → **${penalty.cargo}** pts`,
+					);
+				if (penalty.distance > 0)
+					penaltyLines.push(
+						`• Distance Penalty: ${job.driven_distance_km} Km → **${penalty.distance}** pts`,
+					);
+				if (penalty.speed > 0)
+					penaltyLines.push(
+						`• Speed Penalty: ${formatStatsType(job.stats_type)} → **${penalty.speed}** pts`,
+					);
+				penaltyLines.push(`**Total Penalty:** **${penalty.total} points**`);
+
+				fields.push({
+					name: '⚖️ Penalty Breakdown',
+					value: safeFieldValue(penaltyLines.join('\n')),
 					inline: false,
 				});
-			if (penalty.vehicle > 0)
+			}
+
+			// 4. Nismara Pass
+			if (context.seasonPass && context.seasonPass.xpAdded > 0) {
 				fields.push({
-					name: '🚗 Vehicle Damage',
-					value: `${job.vehicle_damage}% → **${penalty.vehicle}** points`,
+					name: '🏆 Nismara Pass',
+					value: safeFieldValue(
+						`+**${context.seasonPass.xpAdded.toLocaleString('id-ID')} XP** ${context.seasonPass.isFinalRush ? '*(2x Rush)*' : ''} → **Level ${context.seasonPass.currentLevel}**`,
+					),
 					inline: false,
 				});
-			if (penalty.trailer > 0)
+			} else if (context.seasonPass?.capped) {
 				fields.push({
-					name: '🚛 Trailer Damage',
-					value: `${job.trailers_damage}% → **${penalty.trailer}** points`,
-					inline: true,
+					name: '🏆 Nismara Pass',
+					value: safeFieldValue(
+						`⚠️ *Batas kuota mingguan tercapai* (Level **${context.seasonPass.currentLevel}**)`,
+					),
+					inline: false,
 				});
-			if (penalty.cargo > 0)
-				fields.push({
-					name: '📦 Cargo Damage',
-					value: `${job.cargo_damage}% → **${penalty.cargo}** points`,
-					inline: true,
-				});
-			if (penalty.distance > 0)
-				fields.push({
-					name: '🛣️ Distance Penalty',
-					value: `${job.driven_distance_km} Km → **${penalty.distance}** points`,
-					inline: true,
-				});
-			if (penalty.speed > 0)
-				fields.push({
-					name: '⚡ Speed Penalty',
-					value: `${formatStatsType(job.stats_type)} → **${penalty.speed}** points`,
-					inline: true,
-				});
+			}
 
 			let description;
 			if (penalty.total > 0) {

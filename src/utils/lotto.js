@@ -6,6 +6,7 @@ const CurrencyHistory = require('../models/currencyHistory');
 const cron = require('node-cron');
 
 const GUILD_ID = '863959415702028318';
+const LOTTO_ROLE_ID = '1543502556443975813';
 
 function generateWinningNumbers() {
 	const numbers = new Set();
@@ -114,7 +115,12 @@ async function drawLotto(client) {
 		});
 
 		// Helper untuk memformat field pemenang dengan info jumlah tiket per user
-		const formatWinnerTier = (tierWinners, prizePerTicket, tierNumber, matchCount) => {
+		const formatWinnerTier = (
+			tierWinners,
+			prizePerTicket,
+			tierNumber,
+			matchCount,
+		) => {
 			if (!tierWinners || tierWinners.length === 0) {
 				return {
 					name: `${tierNumber === 1 ? '🥇' : tierNumber === 2 ? '🥈' : '🥉'} Tier ${tierNumber} (${matchCount} Cocok) - 0 Pemenang`,
@@ -215,7 +221,10 @@ async function checkMissedLottoDraw(client) {
 			}
 		}
 	} catch (err) {
-		console.error('❌ [LOTTO RECOVERY] Gagal memeriksa missed lotto draw:', err);
+		console.error(
+			'❌ [LOTTO RECOVERY] Gagal memeriksa missed lotto draw:',
+			err,
+		);
 	}
 }
 

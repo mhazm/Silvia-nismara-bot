@@ -146,6 +146,29 @@ module.exports = new ApplicationCommand({
 				truckyId: driver.id,
 			});
 
+			const magangRoles = settings.roles?.magang || [];
+			if (magangRoles.length > 0) {
+				const targetMember =
+					interaction.options.getMember('user') ||
+					(await interaction.guild.members
+						.fetch(targetUser.id)
+						.catch(() => null));
+				if (targetMember) {
+					for (const roleId of magangRoles) {
+						if (!targetMember.roles.cache.has(roleId)) {
+							await targetMember.roles
+								.add(roleId)
+								.catch((err) => {
+									console.error(
+										`⚠️ Gagal menambahkan role magang (${roleId}) ke ${targetMember.user.tag}:`,
+										err,
+									);
+								});
+						}
+					}
+				}
+			}
+
 			const embed = new EmbedBuilder()
 				.setTitle('✅ Driver Berhasil Didaftarkan')
 				.setColor('Green')

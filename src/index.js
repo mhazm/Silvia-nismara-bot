@@ -12,8 +12,10 @@ const startInsuranceWatcher = require('./utils/insuranceWatcher');
 const cargoMarketEvaluator = require('./utils/cargoMarket');
 const startConvoyNotificationWatcher = require('./utils/convoyNotification');
 const startNismaraPlusWatcher = require('./utils/nismaraPlusWatcher');
+const startNcBoostWatcher = require('./utils/ncBoostWatcher');
 const startGarageWatcher = require('./utils/garageCron');
 const { initLottoCron } = require('./utils/lotto');
+const { initGiveawayCron } = require('./utils/giveawayWatcher');
 const startAiHistoryWatcher = require('./utils/aiHistoryWatcher');
 const { start } = require('repl');
 
@@ -33,8 +35,10 @@ startInsuranceWatcher(client);
 insuranceEvaluator(client);
 cargoMarketEvaluator(client);
 initLottoCron(client);
+initGiveawayCron(client);
 startConvoyNotificationWatcher(client);
 startNismaraPlusWatcher(client);
+startNcBoostWatcher(client);
 startGarageWatcher(client);
 startAiHistoryWatcher(client);
 

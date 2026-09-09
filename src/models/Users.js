@@ -2,7 +2,7 @@
 const mongoose = require('mongoose');
 
 const usersSchema = new mongoose.Schema({
-	id: { type: String, required: true },
+	id: { type: String, required: false },
 	name: { type: String, required: true },
 	discordId: { type: String, required: true }, // Discord ID
 	isDriver: { type: Boolean, default: false },
@@ -13,7 +13,6 @@ const usersSchema = new mongoose.Schema({
 	isBooster: { type: Boolean, default: false },
 	isBestEmployeeETS2: { type: Boolean, default: false },
 	isBestEmployeeATS: { type: Boolean, default: false },
-	truckyRole: { type: String, default: null },
 	truckersmpId: { type: String, required: false },
 	steamId: { type: String, required: false },
 	isTmpDriver: { type: Boolean, default: false },
@@ -29,6 +28,22 @@ const usersSchema = new mongoose.Schema({
 		status: { type: Boolean, default: false },
 		startedAt: { type: Date, default: null },
 		expiredAt: { type: Date, default: null },
+	},
+
+	topManager: {
+		status: { type: Boolean, default: false },
+		month: { type: String, default: null },
+		awardedAt: { type: Date, default: null },
+		expiredAt: { type: Date, default: null },
+	},
+
+	ncBoost: {
+		active: { type: Boolean, default: false },
+		multiplier: { type: Number, default: 0 },
+		startedAt: { type: Date, default: null },
+		expiredAt: { type: Date, default: null },
+		voucherTitle: { type: String, default: null },
+		voucherCode: { type: String, default: null },
 	},
 
 	galleryBan: {

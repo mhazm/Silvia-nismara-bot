@@ -38,7 +38,7 @@ async function updateDatabase(context, client) {
 				totalNC: rewardTotal,
 			},
 		},
-		{ upsert: true, new: true }
+		{ upsert: true, new: true },
 	);
 	context.totalCurrency = updatedCurrency ? updatedCurrency.totalNC : 0;
 
@@ -52,7 +52,9 @@ async function updateDatabase(context, client) {
 			amount: isSpecialContract ? reward.special : reward.base,
 			managerId: client.user.id,
 			type: 'earn',
-			reason: isSpecialContract ? `Special Contract Job #${jobId}` : `Standard Job #${jobId}`,
+			reason: isSpecialContract
+				? `Special Contract Job #${jobId}`
+				: `Standard Job #${jobId}`,
 		});
 	}
 	if (reward.hardcore > 0) {
@@ -73,6 +75,19 @@ async function updateDatabase(context, client) {
 			managerId: client.user.id,
 			type: 'earn',
 			reason: `NC Boost Event bonus - Job #${jobId}`,
+		});
+	}
+	if (reward.userBoost > 0) {
+		const multiplierText = reward.userBoostMultiplier
+			? ` (x${reward.userBoostMultiplier})`
+			: '';
+		historyRecords.push({
+			guildId,
+			userId: discordId,
+			amount: reward.userBoost,
+			managerId: client.user.id,
+			type: 'earn',
+			reason: `Personal NC Boost bonus${multiplierText} - Job #${jobId}`,
 		});
 	}
 	if (reward.booster > 0) {
@@ -205,13 +220,16 @@ async function updateDatabase(context, client) {
 				updatedAt: new Date(),
 			},
 			$unset: { lockId: '', lockedAt: '' },
-		}
+		},
 	);
 
 	if (result.matchedCount === 0) {
 		console.error('❌ Final update FAILED - No document matched');
 	} else {
-		console.log('Job history updated:', result.modifiedCount > 0 || result.nModified === 1);
+		console.log(
+			'Job history updated:',
+			result.modifiedCount > 0 || result.nModified === 1,
+		);
 	}
 
 	// 4. CONTRACT COMPLETION (Special Contract)
@@ -223,8 +241,13 @@ async function updateDatabase(context, client) {
 		await Contract.updateOne(
 			{ guildId, gameId },
 			{
-				$inc: { completedContracts: 1, totalNCEarned: nc, totalDistance: distance, totalMass: mass },
-			}
+				$inc: {
+					completedContracts: 1,
+					totalNCEarned: nc,
+					totalDistance: distance,
+					totalMass: mass,
+				},
+			},
 		);
 
 		const contributorUpdate = await Contract.updateOne(
@@ -236,7 +259,7 @@ async function updateDatabase(context, client) {
 					'contributors.$.totalDistance': distance,
 					'contributors.$.totalMass': mass,
 				},
-			}
+			},
 		);
 
 		if (contributorUpdate.modifiedCount === 0) {
@@ -244,9 +267,15 @@ async function updateDatabase(context, client) {
 				{ guildId, gameId },
 				{
 					$push: {
-						contributors: { driverId: driver.userId, jobs: 1, totalNC: nc, totalDistance: distance, totalMass: mass },
+						contributors: {
+							driverId: driver.userId,
+							jobs: 1,
+							totalNC: nc,
+							totalDistance: distance,
+							totalMass: mass,
+						},
 					},
-				}
+				},
 			);
 		}
 	}
@@ -255,21 +284,54 @@ async function updateDatabase(context, client) {
 	const updatedUser = await Users.findOneAndUpdate(
 		{ discordId: discordId },
 		{ $inc: { xp: xp.total } },
-		{ new: true }
+		{ new: true },
 	);
 
 	if (!updatedUser) {
 		console.log(`User ${discordId} belum terdaftar di website`);
 	} else {
 		const xpMultiplier = 500;
-		const newLevel = Math.floor(Math.sqrt((updatedUser.xp || 0) / xpMultiplier)) + 1;
+		const newLevel =
+			Math.floor(Math.sqrt((updatedUser.xp || 0) / xpMultiplier)) + 1;
 
 		if (updatedUser.level !== newLevel) {
-			await Users.updateOne({ _id: updatedUser._id }, { $set: { level: newLevel } });
+			await Users.updateOne(
+				{ _id: updatedUser._id },
+				{ $set: { level: newLevel } },
+			);
 			console.log(`Selamat! ${discordId} naik ke level ${newLevel}`);
 			context.levelUp = newLevel;
 		}
-		console.log(`✨ Driver ${context.truckyName} mendapatkan ${xp.total} XP!`);
+		console.log(
+			`✨ Driver ${context.truckyName} mendapatkan ${xp.total} XP!`,
+		);
+	}
+
+	try {
+		const webUrl =
+			process.env.WEB_URL || 'https://transport.nismara.web.id';
+		const secret = process.env.NISMARA_SECRET_API;
+		const passRes = await fetch(`${webUrl}/api/season-pass/add-xp`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'x-bot-secret': secret,
+			},
+			body: JSON.stringify({
+				discordId: discordId,
+				xpAmount: xp.total, // Menggunakan total XP dari kalkulasi job
+				reason: `Job #${jobId} (${job.driven_distance_km || 0} km)`,
+			}),
+		});
+		const passData = await passRes.json();
+		if (passData.success && passData.data) {
+			context.seasonPass = passData.data; // Menyimpan info level & XP untuk embed
+			console.log(
+				`🏆 Season Pass XP added for ${discordId}: +${passData.data.xpAdded} XP (Level ${passData.data.currentLevel})`,
+			);
+		}
+	} catch (err) {
+		console.error('❌ Gagal menambahkan Season Pass XP:', err.message);
 	}
 
 	return context;

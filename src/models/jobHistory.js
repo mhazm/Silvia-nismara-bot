@@ -94,6 +94,7 @@ const jobHistorySchema = new mongoose.Schema(
 			special: Number,
 			hardcore: Number,
 			event: Number,
+			userBoost: Number,
 			booster: Number,
 			nismaraplus: Number,
 			truckersmp: Number,

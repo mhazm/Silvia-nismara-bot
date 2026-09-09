@@ -183,7 +183,7 @@ async function validateAndFetchJob(client, message) {
         manajerLogChannel,
 		// Initialize structures
 		cost: { rent: 0, service: 0, fuel: 0, fines: 0, total: 0 },
-		reward: { base: 0, special: 0, hardcore: 0, event: 0, booster: 0, nismaraplus: 0, total: 0 },
+		reward: { base: 0, special: 0, hardcore: 0, event: 0, userBoost: 0, booster: 0, nismaraplus: 0, truckersmp: 0, total: 0 },
 		discount: { nismaraplus: 0, insurance: 0, total: 0 },
 		xp: { base: 0, special: 0, hardcore: 0, event: 0, booster: 0, nismaraplus: 0, total: 0 },
 		penalty: { vehicle: 0, trailer: 0, cargo: 0, speed: 0, distance: 0, total: 0 },

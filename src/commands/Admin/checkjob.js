@@ -220,6 +220,30 @@ module.exports = new ApplicationCommand({
 					value: `+${nc.event} N¢`,
 					inline: true,
 				});
+			if (nc.userBoost > 0)
+				fields.push({
+					name: '🚀 Personal NC Boost',
+					value: `+${nc.userBoost} N¢`,
+					inline: true,
+				});
+			if (nc.booster > 0)
+				fields.push({
+					name: '💎 Server Booster Bonus',
+					value: `+${nc.booster} N¢`,
+					inline: true,
+				});
+			if (nc.nismaraplus > 0)
+				fields.push({
+					name: '💜 Nismara Plus Bonus',
+					value: `+${nc.nismaraplus} N¢`,
+					inline: true,
+				});
+			if (nc.truckersmp > 0)
+				fields.push({
+					name: '🌐 TruckersMP Bonus',
+					value: `+${nc.truckersmp} N¢`,
+					inline: true,
+				});
 
 			fields.push({
 				name: '🪙 Total NC Earned',
