@@ -28,6 +28,7 @@ const usersSchema = new mongoose.Schema({
 		status: { type: Boolean, default: false },
 		startedAt: { type: Date, default: null },
 		expiredAt: { type: Date, default: null },
+		notified3d: { type: Boolean, default: false },
 	},
 
 	topManager: {

@@ -17,7 +17,15 @@ module.exports = async function startNismaraPlusWatcher(client) {
 			for (const user of expiredUsers) {
 				user.nismaraplus.status = false;
 				user.nismaraplus.notified3d = false;
-				await user.save();
+				await Users.updateOne(
+					{ _id: user._id },
+					{
+						$set: {
+							'nismaraplus.status': false,
+							'nismaraplus.notified3d': false,
+						},
+					},
+				);
 
 				if (user.discordId) {
 					try {
@@ -50,10 +58,22 @@ module.exports = async function startNismaraPlusWatcher(client) {
 				console.log(`✅ Nismara+ expired for user ${user.discordId}`);
 			}
 
-			// 2. Check for 3-day reminders
+			// 2. Reset notified3d jika user memperpanjang langganan (> 3 hari ke depan)
 			const threeDaysFromNow = new Date(
 				now.getTime() + 3 * 24 * 60 * 60 * 1000,
 			);
+			await Users.updateMany(
+				{
+					'nismaraplus.status': true,
+					'nismaraplus.expiredAt': { $gt: threeDaysFromNow },
+					'nismaraplus.notified3d': true,
+				},
+				{
+					$set: { 'nismaraplus.notified3d': false },
+				},
+			);
+
+			// 3. Check for 3-day reminders
 			const expiringUsers = await Users.find({
 				'nismaraplus.status': true,
 				'nismaraplus.expiredAt': {
@@ -65,7 +85,10 @@ module.exports = async function startNismaraPlusWatcher(client) {
 
 			for (const user of expiringUsers) {
 				user.nismaraplus.notified3d = true;
-				await user.save();
+				await Users.updateOne(
+					{ _id: user._id },
+					{ $set: { 'nismaraplus.notified3d': true } },
+				);
 
 				if (user.discordId) {
 					try {
