@@ -4,14 +4,22 @@ const { EmbedBuilder } = require('discord.js');
 module.exports = async function startNismaraPlusWatcher(client) {
 	console.log('🔄 Nismara+ Watcher started...');
 
+	let isChecking = false;
+
 	const checkNismaraPlus = async () => {
+		if (isChecking) return;
+		isChecking = true;
+
 		try {
 			const now = new Date();
+			const threeDaysFromNow = new Date(
+				now.getTime() + 3 * 24 * 60 * 60 * 1000,
+			);
 
 			// 1. Check for expired subscriptions
 			const expiredUsers = await Users.find({
 				'nismaraplus.status': true,
-				'nismaraplus.expiredAt': { $lte: now },
+				'nismaraplus.expiredAt': { $ne: null, $lte: now },
 			});
 
 			for (const user of expiredUsers) {
@@ -23,6 +31,8 @@ module.exports = async function startNismaraPlusWatcher(client) {
 						$set: {
 							'nismaraplus.status': false,
 							'nismaraplus.notified3d': false,
+							'nismaraplus.startedAt': null,
+							'nismaraplus.expiredAt': null,
 						},
 					},
 				);
@@ -43,9 +53,14 @@ module.exports = async function startNismaraPlusWatcher(client) {
 							await discordUser.send({ embeds: [embed] });
 						}
 					} catch (err) {
-						if (err.code === 50007 || err.code === 50278 || err.code === 50001) {
+						if (
+							err.code === 50007 ||
+							err.code === 50278 ||
+							err.code === 50001 ||
+							err.code === 10013
+						) {
 							console.warn(
-								`⚠️ Tidak dapat mengirim DM expired ke user ${user.discordId} (DM ditutup/tidak ada mutual guild)`,
+								`⚠️ Tidak dapat mengirim DM expired ke user ${user.discordId} (DM ditutup/tidak ada mutual guild/user tidak valid)`,
 							);
 						} else {
 							console.error(
@@ -59,13 +74,13 @@ module.exports = async function startNismaraPlusWatcher(client) {
 			}
 
 			// 2. Reset notified3d jika user memperpanjang langganan (> 3 hari ke depan)
-			const threeDaysFromNow = new Date(
-				now.getTime() + 3 * 24 * 60 * 60 * 1000,
-			);
 			await Users.updateMany(
 				{
 					'nismaraplus.status': true,
-					'nismaraplus.expiredAt': { $gt: threeDaysFromNow },
+					'nismaraplus.expiredAt': {
+						$ne: null,
+						$gt: threeDaysFromNow,
+					},
 					'nismaraplus.notified3d': true,
 				},
 				{
@@ -77,6 +92,7 @@ module.exports = async function startNismaraPlusWatcher(client) {
 			const expiringUsers = await Users.find({
 				'nismaraplus.status': true,
 				'nismaraplus.expiredAt': {
+					$ne: null,
 					$lte: threeDaysFromNow,
 					$gt: now,
 				},
@@ -96,21 +112,32 @@ module.exports = async function startNismaraPlusWatcher(client) {
 							user.discordId,
 						);
 						if (discordUser) {
+							const expiredTimestamp = user.nismaraplus.expiredAt
+								? Math.floor(
+										new Date(
+											user.nismaraplus.expiredAt,
+										).getTime() / 1000,
+									)
+								: Math.floor(Date.now() / 1000);
+
 							const embed = new EmbedBuilder()
 								.setTitle('⚠️ Pengingat Perpanjangan Nismara+')
 								.setColor('Yellow')
 								.setDescription(
-									`Halo! Langganan **Nismara+** kamu akan berakhir dalam **3 Hari** (pada <t:${Math.floor(
-										user.nismaraplus.expiredAt.getTime() / 1000,
-									)}:F>).\n\nSegera lakukan perpanjangan agar kamu tetap bisa menikmati fitur-fitur eksklusif Nismara+!`,
+									`Halo! Langganan **Nismara+** kamu akan berakhir dalam **3 Hari** (pada <t:${expiredTimestamp}:F>).\n\nSegera lakukan perpanjangan agar kamu tetap bisa menikmati fitur-fitur eksklusif Nismara+!`,
 								)
 								.setTimestamp();
 							await discordUser.send({ embeds: [embed] });
 						}
 					} catch (err) {
-						if (err.code === 50007 || err.code === 50278 || err.code === 50001) {
+						if (
+							err.code === 50007 ||
+							err.code === 50278 ||
+							err.code === 50001 ||
+							err.code === 10013
+						) {
 							console.warn(
-								`⚠️ Tidak dapat mengirim DM pengingat 3 hari ke user ${user.discordId} (DM ditutup/tidak ada mutual guild)`,
+								`⚠️ Tidak dapat mengirim DM pengingat 3 hari ke user ${user.discordId} (DM ditutup/tidak ada mutual guild/user tidak valid)`,
 							);
 						} else {
 							console.error(
@@ -126,6 +153,8 @@ module.exports = async function startNismaraPlusWatcher(client) {
 			}
 		} catch (err) {
 			console.error('❌ Nismara+ watcher error:', err);
+		} finally {
+			isChecking = false;
 		}
 	};
 
