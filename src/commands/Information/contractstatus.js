@@ -35,7 +35,11 @@ module.exports = new ApplicationCommand({
 
 		const guildId = interaction.guild.id;
 		const gameId = interaction.options.getInteger('game');
-		const contract = await Contract.findOne({ guildId, gameId });
+		const contract = await Contract.findOne({
+			guildId,
+			gameId: String(gameId),
+			isActive: true,
+		});
 
 		if (!contract) {
 			return interaction.editReply(

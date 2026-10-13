@@ -49,7 +49,7 @@ module.exports = new ApplicationCommand({
 			}
 
 			// 🔹 Hapus kontrak aktif
-			const activeContract = await Contract.findOne({ guildId });
+			const activeContract = await Contract.findOne({ guildId, isActive: true });
 			if (activeContract) {
 				await activeContract.deleteOne();
 			}

@@ -237,9 +237,11 @@ async function updateDatabase(context, client) {
 		const nc = Number(reward.total) || 0;
 		const distance = job.driven_distance_km ?? 0;
 		const mass = job.cargo_mass_t ?? 0;
+		const targetGameId = String(gameId);
+		const driverId = driver?.userId || discordId;
 
 		await Contract.updateOne(
-			{ guildId, gameId },
+			{ guildId, gameId: targetGameId, isActive: true },
 			{
 				$inc: {
 					completedContracts: 1,
@@ -251,7 +253,12 @@ async function updateDatabase(context, client) {
 		);
 
 		const contributorUpdate = await Contract.updateOne(
-			{ guildId, gameId, 'contributors.driverId': driver.userId },
+			{
+				guildId,
+				gameId: targetGameId,
+				isActive: true,
+				'contributors.driverId': driverId,
+			},
 			{
 				$inc: {
 					'contributors.$.jobs': 1,
@@ -264,11 +271,11 @@ async function updateDatabase(context, client) {
 
 		if (contributorUpdate.modifiedCount === 0) {
 			await Contract.updateOne(
-				{ guildId, gameId },
+				{ guildId, gameId: targetGameId, isActive: true },
 				{
 					$push: {
 						contributors: {
-							driverId: driver.userId,
+							driverId: driverId,
 							jobs: 1,
 							totalNC: nc,
 							totalDistance: distance,
